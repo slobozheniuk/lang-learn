@@ -514,7 +514,7 @@ export function App() {
   const currentCard = deck.length > 0 && currentIndex < deck.length ? deck[currentIndex] : null;
 
   return (
-    <>
+    <div className="app-shell">
       {/* App Header with Cheeseburger Button */}
       <Header
         user={user}
@@ -529,15 +529,7 @@ export function App() {
         onLogout={handleLogout}
       />
 
-      {/* Cheeseburger Navigation Drawer Menu */}
-      <BurgerMenu
-        isOpen={isMenuOpen}
-        activePage={activePage}
-        onClose={() => setIsMenuOpen(false)}
-        onNavigate={(page) => setActivePage(page)}
-      />
-
-      {/* Main Container */}
+      {/* Main Scrollable Content Container */}
       <main className="app-container">
         {activePage === 'flashcards' ? (
           <FlashcardsView
@@ -557,12 +549,20 @@ export function App() {
         )}
       </main>
 
-      {/* Floating Bottom Word Input Dock */}
+      {/* Pinned Bottom Word Input Dock */}
       <BottomDock
         quickInput={quickInput}
         isSending={isSending}
         onInputChange={setQuickInput}
         onSubmit={handleQuickWordSubmit}
+      />
+
+      {/* Cheeseburger Navigation Drawer Menu */}
+      <BurgerMenu
+        isOpen={isMenuOpen}
+        activePage={activePage}
+        onClose={() => setIsMenuOpen(false)}
+        onNavigate={(page) => setActivePage(page)}
       />
 
       {/* Auth Modal */}
@@ -592,7 +592,7 @@ export function App() {
         onRegisterSubmit={handleRegisterSubmit}
         onQuickDemoLogin={handleQuickDemoLogin}
       />
-    </>
+    </div>
   );
 }
 

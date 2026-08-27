@@ -116,7 +116,7 @@ html, body, #root {
   -webkit-overscroll-behavior: none;
 }
 
-body, #root {
+body, #root, .app-shell {
   font-family: var(--font-sans);
   background-color: var(--bg-app);
   color: var(--text-main);
@@ -124,6 +124,13 @@ body, #root {
   -webkit-font-smoothing: antialiased;
   display: flex;
   flex-direction: column;
+}
+
+.app-shell {
+  height: 100%;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
 }
 
 button, input, select, textarea {
@@ -418,7 +425,7 @@ button {
   max-width: 560px;
   width: 100%;
   margin: 0 auto;
-  padding: 1.25rem 1rem calc(8rem + env(safe-area-inset-bottom, 0px)) 1rem;
+  padding: 1.25rem 1rem;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -772,7 +779,7 @@ button {
   flex-direction: column;
   gap: 1rem;
   min-height: 0;
-  padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 1rem;
 }
 
 .wordlist-header {
@@ -1100,8 +1107,8 @@ button {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   margin-top: 0.5rem;
-  margin-bottom: 3.5rem;
-  scroll-margin-bottom: 160px;
+  margin-bottom: 1rem;
+  scroll-margin-bottom: 70px;
   scroll-margin-top: 70px;
 }
 
@@ -1330,14 +1337,11 @@ button {
 }
 
 /* ==========================================================================
-   Floating Bottom Word Input Dock
+   Bottom Word Input Dock (Pinned in normal flex flow)
    ========================================================================== */
 .bottom-dock {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 99999;
+  flex-shrink: 0;
+  width: 100%;
   padding: 1.2rem 0.75rem calc(1.2rem + env(safe-area-inset-bottom, 0px)) 0.75rem;
   display: flex;
   justify-content: center;
@@ -1350,6 +1354,7 @@ button {
 .bottom-dock-container {
   width: 100%;
   max-width: 600px;
+  margin: 0 auto;
 }
 
 .quick-word-form {

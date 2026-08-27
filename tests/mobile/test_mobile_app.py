@@ -9,7 +9,7 @@ SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 def test_mobile_layout_and_fixed_elements(mobile_page: Page):
     """Test Layout & Fixed Elements:
-    Header is fixed at top, floating input dock is fixed at bottom,
+    Header is fixed at top, bottom dock is pinned at bottom via normal flex flow,
     middle container scrolls without viewport overscroll.
     """
     page = mobile_page
@@ -21,7 +21,7 @@ def test_mobile_layout_and_fixed_elements(mobile_page: Page):
     assert header_box is not None
     assert header_box["y"] == 0, f"Header should start at y=0, got {header_box['y']}"
 
-    # Verify bottom input dock is fixed at the bottom of the viewport
+    # Verify bottom input dock is pinned at the bottom of the viewport in normal flex flow
     bottom_dock = page.locator(".bottom-dock")
     expect(bottom_dock).to_be_visible()
     dock_box = bottom_dock.bounding_box()
@@ -31,15 +31,18 @@ def test_mobile_layout_and_fixed_elements(mobile_page: Page):
     # Bottom dock should touch or be flush at bottom of viewport
     assert abs((dock_box["y"] + dock_box["height"]) - viewport_size["height"]) < 2
 
-    # Verify bottom dock has fixed positioning in computed styles
+    # Verify bottom dock does not use fixed positioning (in normal flex flow)
     dock_position = bottom_dock.evaluate("el => window.getComputedStyle(el).position")
-    assert dock_position == "fixed"
+    assert dock_position != "fixed", f"Bottom dock should not have position: fixed, got {dock_position}"
+    assert dock_position in ("static", "relative")
 
-    # Verify middle scroll container (.app-container) has overflow-y: auto / scroll
+    # Verify middle scroll container (.app-container) has overflow-y: auto / scroll and flex-grow: 1
     container = page.locator(".app-container")
     expect(container).to_be_visible()
     container_overflow_y = container.evaluate("el => window.getComputedStyle(el).overflowY")
     assert container_overflow_y in ("auto", "scroll")
+    container_flex_grow = container.evaluate("el => window.getComputedStyle(el).flexGrow")
+    assert float(container_flex_grow) >= 1
 
     # Verify html and body prevent viewport overscroll (overflow: hidden, overscroll-behavior: none)
     body_overflow = page.evaluate("() => window.getComputedStyle(document.body).overflow")
