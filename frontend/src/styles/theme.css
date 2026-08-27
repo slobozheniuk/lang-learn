@@ -1,0 +1,120 @@
+/* ==========================================================================
+   TWA-Inspired Theme & Design Tokens
+   Supports Telegram Web App native theme variables (--tg-theme-*)
+   with robust light/dark fallbacks for standalone browser mode.
+   ========================================================================== */
+
+:root {
+  /* Default Light Theme Fallbacks */
+  --fallback-bg-color: #f7f9fb;
+  --fallback-text-color: #1a1e24;
+  --fallback-hint-color: #7b8895;
+  --fallback-link-color: #2481cc;
+  --fallback-button-color: #2481cc;
+  --fallback-button-text-color: #ffffff;
+  --fallback-secondary-bg-color: #ffffff;
+  --fallback-header-bg-color: #ffffff;
+  --fallback-section-bg-color: #ffffff;
+  --fallback-section-header-text-color: #6d7885;
+  --fallback-subtitle-text-color: #7b8895;
+  --fallback-destructive-text-color: #e53935;
+  --fallback-border-color: #e2e8f0;
+  --fallback-border-subtle: #edf2f7;
+
+  /* SRS Rating Specific Colors */
+  --srs-again: #ef4444;
+  --srs-again-bg: rgba(239, 68, 68, 0.12);
+  --srs-again-hover: #dc2626;
+  --srs-hard: #f59e0b;
+  --srs-hard-bg: rgba(245, 158, 11, 0.12);
+  --srs-hard-hover: #d97706;
+  --srs-good: #3b82f6;
+  --srs-good-bg: rgba(59, 130, 246, 0.12);
+  --srs-good-hover: #2563eb;
+  --srs-easy: #10b981;
+  --srs-easy-bg: rgba(16, 185, 129, 0.12);
+  --srs-easy-hover: #059669;
+
+  /* App Semantic Design Tokens referencing TWA variables with fallbacks */
+  --bg-primary: var(--tg-theme-bg-color, var(--fallback-bg-color));
+  --bg-secondary: var(--tg-theme-secondary-bg-color, var(--fallback-secondary-bg-color));
+  --bg-card: var(--tg-theme-section-bg-color, var(--fallback-section-bg-color));
+  --bg-header: var(--tg-theme-header-bg-color, var(--fallback-header-bg-color));
+  --bg-elevated: #ffffff;
+
+  --text-primary: var(--tg-theme-text-color, var(--fallback-text-color));
+  --text-secondary: var(--tg-theme-subtitle-text-color, var(--fallback-subtitle-text-color));
+  --text-muted: var(--tg-theme-hint-color, var(--fallback-hint-color));
+  --text-header: var(--tg-theme-section-header-text-color, var(--fallback-section-header-text-color));
+
+  --color-primary: var(--tg-theme-button-color, var(--fallback-button-color));
+  --color-primary-text: var(--tg-theme-button-text-color, var(--fallback-button-text-color));
+  --color-primary-hover: #1e6eb0;
+  --color-link: var(--tg-theme-link-color, var(--fallback-link-color));
+  --color-destructive: var(--tg-theme-destructive-text-color, var(--fallback-destructive-text-color));
+
+  --border-color: var(--fallback-border-color);
+  --border-color-subtle: var(--fallback-border-subtle);
+
+  /* Spacing & Radii */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.05);
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+/* Dark Mode Fallbacks */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fallback-bg-color: #0f141c;
+    --fallback-text-color: #f1f5f9;
+    --fallback-hint-color: #8b98a5;
+    --fallback-link-color: #52a9ff;
+    --fallback-button-color: #52a9ff;
+    --fallback-button-text-color: #ffffff;
+    --fallback-secondary-bg-color: #18222d;
+    --fallback-header-bg-color: #18222d;
+    --fallback-section-bg-color: #1e293b;
+    --fallback-section-header-text-color: #94a3b8;
+    --fallback-subtitle-text-color: #8b98a5;
+    --fallback-destructive-text-color: #f87171;
+    --fallback-border-color: #273546;
+    --fallback-border-subtle: #1e293b;
+    --bg-elevated: #233142;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.45);
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Explicit theme override classes */
+[data-theme="dark"] {
+  --fallback-bg-color: #0f141c;
+  --fallback-text-color: #f1f5f9;
+  --fallback-hint-color: #8b98a5;
+  --fallback-link-color: #52a9ff;
+  --fallback-button-color: #52a9ff;
+  --fallback-button-text-color: #ffffff;
+  --fallback-secondary-bg-color: #18222d;
+  --fallback-header-bg-color: #18222d;
+  --fallback-section-bg-color: #1e293b;
+  --fallback-section-header-text-color: #94a3b8;
+  --fallback-subtitle-text-color: #8b98a5;
+  --fallback-destructive-text-color: #f87171;
+  --fallback-border-color: #273546;
+  --fallback-border-subtle: #1e293b;
+  --bg-elevated: #233142;
+}
