@@ -57,13 +57,10 @@
     authAlert: document.getElementById('auth-alert'),
     quickDemoBtn: document.getElementById('quick-demo-btn'),
 
-    // Add Word Form
-    wordForm: document.getElementById('word-form'),
-    wordText: document.getElementById('word-text'),
-    wordTranslation: document.getElementById('word-translation'),
-    wordContext: document.getElementById('word-context'),
-    wordLang: document.getElementById('word-lang'),
-    btnAddWord: document.getElementById('btn-add-word'),
+    // Floating Quick Add Word Dock
+    quickWordForm: document.getElementById('quick-word-form'),
+    quickWordInput: document.getElementById('quick-word-input'),
+    btnQuickSend: document.getElementById('btn-quick-send'),
 
     // Flashcard View
     deckTabDue: document.getElementById('tab-due'),
@@ -255,76 +252,85 @@
     try {
       const langs = await api('/api/v1/languages/');
       state.languages = langs;
-      el.wordLang.innerHTML = '';
-      langs.forEach(lang => {
-        const opt = document.createElement('option');
-        opt.value = lang.code;
-        opt.textContent = `${lang.name} (${lang.code.toUpperCase()})`;
-        el.wordLang.appendChild(opt);
-      });
-      // Default to English or user's default_target_lang
-      if (state.user && state.user.default_target_lang) {
-        el.wordLang.value = state.user.default_target_lang;
-      } else {
-        el.wordLang.value = 'en';
+      const regTargetLang = document.getElementById('reg-target-lang');
+      if (regTargetLang) {
+        regTargetLang.innerHTML = '';
+        langs.forEach(lang => {
+          const opt = document.createElement('option');
+          opt.value = lang.code;
+          opt.textContent = `${lang.name} (${lang.code.toUpperCase()})`;
+          regTargetLang.appendChild(opt);
+        });
+        if (state.user && state.user.default_target_lang) {
+          regTargetLang.value = state.user.default_target_lang;
+        } else {
+          regTargetLang.value = 'en';
+        }
       }
     } catch (e) {
       console.warn('Failed to load languages:', e);
     }
   }
 
-  // --- Add Word Form ---
-  el.wordForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = el.wordText.value.trim();
-    const translation = el.wordTranslation.value.trim();
-    const context_phrase = el.wordContext.value.trim() || null;
-    const language_code = el.wordLang.value || 'en';
+  // --- Quick Add Word (Floating Bottom Dock) ---
+  if (el.quickWordForm) {
+    el.quickWordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const raw = el.quickWordInput ? el.quickWordInput.value.trim() : '';
+      if (!raw) return;
 
-    if (!text || !translation) {
-      showToast('Please enter both word and translation', 'error');
-      return;
-    }
+      if (!state.token) {
+        openAuthModal('login');
+        showAuthError('Please sign in or register to add words.');
+        return;
+      }
 
-    if (!state.token) {
-      openAuthModal('login');
-      showAuthError('Please sign in or register to add words.');
-      return;
-    }
+      // Parse single-box input: check for delimiter (e.g. "word - translation" or "word = translation" or "word: translation")
+      let text = raw;
+      let translation = raw;
+      const match = raw.match(/^(.*?)\s*(?:[-–—=:]|->|=>)\s*(.+)$/);
+      if (match && match[1].trim() && match[2].trim()) {
+        text = match[1].trim();
+        translation = match[2].trim();
+      }
 
-    el.btnAddWord.disabled = true;
-    el.btnAddWord.textContent = 'Adding...';
+      // Auto-detect target language from active user default target language or available languages
+      const language_code = (state.user && state.user.default_target_lang) || (state.languages && state.languages.length ? state.languages[0].code : 'en');
 
-    try {
-      const newWord = await api('/api/v1/words/', {
-        method: 'POST',
-        body: JSON.stringify({
-          text,
-          translation,
-          context_phrase,
-          language_code,
-        }),
-      });
+      if (el.btnQuickSend) {
+        el.btnQuickSend.disabled = true;
+      }
 
-      triggerHaptic('success');
-      showToast(`✓ Added "${newWord.text}" to your deck!`, 'success');
+      try {
+        const newWord = await api('/api/v1/words/', {
+          method: 'POST',
+          body: JSON.stringify({
+            text,
+            translation,
+            language_code,
+          }),
+        });
 
-      // Clear inputs
-      el.wordText.value = '';
-      el.wordTranslation.value = '';
-      el.wordContext.value = '';
-      el.wordText.focus();
+        triggerHaptic('success');
+        showToast(`✓ Added "${newWord.text}" to your deck!`, 'success');
 
-      // Refresh deck and select the newly added word
-      await loadDeck(state.deckMode, newWord.id);
-    } catch (err) {
-      triggerHaptic('error');
-      showToast(err.message || 'Failed to add word', 'error');
-    } finally {
-      el.btnAddWord.disabled = false;
-      el.btnAddWord.textContent = '➕ Add Word';
-    }
-  });
+        // Clear input box
+        if (el.quickWordInput) {
+          el.quickWordInput.value = '';
+        }
+
+        // Immediately refresh flashcards deck and select newly added word
+        await loadDeck(state.deckMode, newWord.id);
+      } catch (err) {
+        triggerHaptic('error');
+        showToast(err.message || 'Failed to add word', 'error');
+      } finally {
+        if (el.btnQuickSend) {
+          el.btnQuickSend.disabled = false;
+        }
+      }
+    });
+  }
 
   // --- Flashcards & Review Deck ---
   async function loadDeck(mode = 'due', selectWordId = null) {
@@ -394,14 +400,14 @@
       if (state.deckMode === 'due') {
         el.emptyIcon.textContent = '🎉';
         el.emptyTitle.textContent = 'All caught up!';
-        el.emptyDesc.textContent = 'No cards currently due for review. Add more words above or practice all cards in your deck.';
+        el.emptyDesc.textContent = 'No cards currently due for review. Add more words below or practice all cards in your deck.';
         el.emptyActionBtn.style.display = 'inline-flex';
         el.emptyActionBtn.textContent = 'Review All Flashcards';
         el.emptyActionBtn.onclick = () => loadDeck('all');
       } else {
         el.emptyIcon.textContent = '✨';
         el.emptyTitle.textContent = 'No flashcards yet';
-        el.emptyDesc.textContent = 'Add your first word using the form above to start learning!';
+        el.emptyDesc.textContent = 'Type a word in the bar below to start learning!';
         el.emptyActionBtn.style.display = 'none';
       }
       return;

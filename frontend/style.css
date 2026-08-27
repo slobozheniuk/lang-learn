@@ -126,7 +126,7 @@ button {
   max-width: 680px;
   width: 100%;
   margin: 0 auto;
-  padding: 1.25rem 1rem 3rem 1rem;
+  padding: 1.25rem 1rem calc(5.5rem + env(safe-area-inset-bottom, 0px)) 1rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -798,10 +798,106 @@ button {
   display: block;
 }
 
+/* Floating Bottom Word Input Dock */
+.bottom-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  pointer-events: none;
+  padding: 0.75rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.bottom-dock-container {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 680px;
+}
+
+.quick-word-form {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 0.35rem 0.45rem 0.35rem 1.15rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2), var(--shadow-lg);
+}
+
+.quick-word-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 0.95rem;
+  outline: none;
+  padding: 0.45rem 0.5rem 0.45rem 0;
+  min-width: 0;
+}
+
+.quick-word-input::placeholder {
+  color: var(--text-hint);
+}
+
+.btn-quick-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary);
+  color: var(--color-primary-text);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-quick-send:hover {
+  filter: brightness(1.1);
+  transform: scale(1.04);
+}
+
+.btn-quick-send:active {
+  transform: scale(0.96);
+}
+
+.btn-quick-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.send-icon {
+  display: block;
+  transform: translate(1px, -1px);
+}
+
 /* Toast Notifications */
 .toast-container {
   position: fixed;
-  bottom: 1.5rem;
+  bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
   right: 1.5rem;
   left: 1.5rem;
   display: flex;
