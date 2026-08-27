@@ -7,7 +7,7 @@ import time
 from typing import Generator
 import httpx
 import pytest
-from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
+from playwright.sync_api import Browser, BrowserContext, Page, expect, sync_playwright
 
 
 def get_free_port(preferred_port: int = 8888) -> int:
@@ -22,6 +22,15 @@ def get_free_port(preferred_port: int = 8888) -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def login_demo_user(page: Page) -> None:
+    """Logs in using the Quick Demo Login button on the dedicated auth screen if unauthenticated."""
+    demo_btn = page.locator("#quick-demo-btn")
+    if demo_btn.is_visible():
+        demo_btn.click()
+        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+        expect(page.locator("#lessons-view")).to_be_visible()
 
 
 @pytest.fixture(scope="session")

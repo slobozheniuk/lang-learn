@@ -6,7 +6,7 @@ interface HeaderProps {
   token: string | null;
   onToggleMenu: () => void;
   onNavigate: (page: PageView) => void;
-  onOpenAuth: () => void;
+  onOpenAuth?: () => void;
   onLogout: () => void;
 }
 
@@ -15,28 +15,33 @@ export const Header: React.FC<HeaderProps> = ({
   token,
   onToggleMenu,
   onNavigate,
-  onOpenAuth,
   onLogout,
 }) => {
+  const isAuthenticated = Boolean(token && user);
+
   return (
     <header className="app-header">
       <div className="header-content">
         <div className="header-left">
-          <button
-            id="burger-menu-btn"
-            className="burger-menu-btn"
-            aria-label="Toggle navigation menu"
-            title="Menu"
-            onClick={onToggleMenu}
-          >
-            ☰
-          </button>
+          {isAuthenticated && (
+            <button
+              id="burger-menu-btn"
+              className="burger-menu-btn"
+              aria-label="Toggle navigation menu"
+              title="Menu"
+              onClick={onToggleMenu}
+            >
+              ☰
+            </button>
+          )}
           <a
             href="/"
             className="brand"
             onClick={(e) => {
               e.preventDefault();
-              onNavigate('lessons');
+              if (isAuthenticated) {
+                onNavigate('lessons');
+              }
             }}
           >
             <span className="brand-icon">⚡</span>
@@ -44,23 +49,17 @@ export const Header: React.FC<HeaderProps> = ({
           </a>
         </div>
 
-        <div id="auth-nav" className="auth-nav">
-          {token && user ? (
-            <>
-              <div className="user-badge" title={`Logged in as ${user.username}`}>
-                <span>👤</span>
-                <span className="user-name">{user.username}</span>
-              </div>
-              <button id="btn-logout" className="btn btn-outline btn-sm" onClick={onLogout}>
-                Sign Out
-              </button>
-            </>
-          ) : (
-            <button id="btn-open-login" className="btn btn-primary btn-sm" onClick={onOpenAuth}>
-              Sign In / Register
+        {isAuthenticated && user && (
+          <div id="auth-nav" className="auth-nav">
+            <div className="user-badge" title={`Logged in as ${user.username}`}>
+              <span>👤</span>
+              <span className="user-name">{user.username}</span>
+            </div>
+            <button id="btn-logout" className="btn btn-outline btn-sm" onClick={onLogout}>
+              Sign Out
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </header>
   );

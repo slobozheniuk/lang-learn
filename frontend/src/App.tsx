@@ -24,7 +24,7 @@ import { LessonDetailView } from './components/LessonDetailView';
 import { FlashcardsView } from './components/FlashcardsView';
 import { WordlistView } from './components/WordlistView';
 import { BottomDock } from './components/BottomDock';
-import { AuthModal } from './components/AuthModal';
+import { AuthView } from './components/AuthView';
 
 export function App() {
   // Navigation & View State
@@ -50,8 +50,7 @@ export function App() {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
-  // Modal & Form State
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  // Auth Form State
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -66,6 +65,8 @@ export function App() {
   const [quickInput, setQuickInput] = useState('');
   const [isSending, setIsSending] = useState(false);
 
+  const isAuthenticated = Boolean(token && user);
+
   // Stable refs for event listeners & callbacks
   const tokenRef = useRef(token);
   tokenRef.current = token;
@@ -75,13 +76,14 @@ export function App() {
   deckRef.current = deck;
   const currentIndexRef = useRef(currentIndex);
   currentIndexRef.current = currentIndex;
-  const isModalOpenRef = useRef(isModalOpen);
-  isModalOpenRef.current = isModalOpen;
   const activePageRef = useRef(activePage);
   activePageRef.current = activePage;
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  isAuthenticatedRef.current = isAuthenticated;
 
   // Load Wordlist
   const loadWordlist = useCallback(async () => {
+    if (!tokenRef.current) return;
     setIsWordsLoading(true);
     try {
       const words = await fetchWords(100);
@@ -98,20 +100,19 @@ export function App() {
   const loadDeck = useCallback(
     async (selectWordId?: number | null, fallbackWord?: FlashcardItem | null) => {
       setIsFlipped(false);
+      if (!tokenRef.current) {
+        setDeck([]);
+        setCurrentIndex(0);
+        return;
+      }
       try {
-        let cards: FlashcardItem[] = [];
-        if (tokenRef.current) {
-          const dueItems = await fetchDueReviews();
-          cards = (dueItems || []).map((item) => ({
-            ...item.word,
-            stats: item.stats,
-            user_stats: item.stats,
-            is_new: item.is_new,
-          }));
-        } else {
-          const words = await fetchWords(50);
-          cards = words || [];
-        }
+        const dueItems = await fetchDueReviews();
+        let cards: FlashcardItem[] = (dueItems || []).map((item) => ({
+          ...item.word,
+          stats: item.stats,
+          user_stats: item.stats,
+          is_new: item.is_new,
+        }));
 
         if (fallbackWord) {
           const hasFallback = cards.some((w) => w.id === fallbackWord.id);
@@ -157,6 +158,8 @@ export function App() {
   // Check initial authentication
   const checkAuth = useCallback(async () => {
     if (!tokenRef.current) {
+      setUser(null);
+      setToken(null);
       return;
     }
     try {
@@ -193,47 +196,47 @@ export function App() {
   );
 
   // SRS Rating submission
-  const submitRating = useCallback(async (rating: 'again' | 'good') => {
-    if (deckRef.current.length === 0) return;
-    const card = deckRef.current[currentIndexRef.current];
-    if (!card) return;
+  const submitRating = useCallback(
+    async (rating: 'again' | 'good') => {
+      if (deckRef.current.length === 0) return;
+      const card = deckRef.current[currentIndexRef.current];
+      if (!card) return;
 
-    if (!tokenRef.current) {
-      setIsModalOpen(true);
-      setAuthTab('login');
-      setAuthError('Please sign in or register to record your review progress.');
-      return;
-    }
-
-    try {
-      if (rating === 'again') {
-        triggerHaptic('error');
-      } else {
-        triggerHaptic('success');
+      if (!tokenRef.current) {
+        return;
       }
 
-      await submitReviewRating(card.id, rating);
-
-      setDeck((prevDeck) => {
-        const nextDeck = [...prevDeck];
-        nextDeck.splice(currentIndexRef.current, 1);
-        return nextDeck;
-      });
-      setCurrentIndex((prevIdx) => {
-        const newLen = deckRef.current.length - 1;
-        if (prevIdx >= newLen) {
-          return 0;
+      try {
+        if (rating === 'again') {
+          triggerHaptic('error');
+        } else {
+          triggerHaptic('success');
         }
-        return prevIdx;
-      });
-      setIsFlipped(false);
-      // Refresh words in background to update stats
-      loadWordlist();
-    } catch (err) {
-      triggerHaptic('error');
-      console.error('Failed to submit review rating:', err);
-    }
-  }, [loadWordlist]);
+
+        await submitReviewRating(card.id, rating);
+
+        setDeck((prevDeck) => {
+          const nextDeck = [...prevDeck];
+          nextDeck.splice(currentIndexRef.current, 1);
+          return nextDeck;
+        });
+        setCurrentIndex((prevIdx) => {
+          const newLen = deckRef.current.length - 1;
+          if (prevIdx >= newLen) {
+            return 0;
+          }
+          return prevIdx;
+        });
+        setIsFlipped(false);
+        // Refresh words in background to update stats
+        loadWordlist();
+      } catch (err) {
+        triggerHaptic('error');
+        console.error('Failed to submit review rating:', err);
+      }
+    },
+    [loadWordlist]
+  );
 
   // Restart Deck handler
   const handleRestartDeck = useCallback(async () => {
@@ -278,29 +281,26 @@ export function App() {
   // Initial boot
   useEffect(() => {
     initTelegram();
+    loadLanguages();
     checkAuth().then(() => {
-      loadLanguages();
-      loadDeck();
-      loadWordlist();
+      if (tokenRef.current) {
+        loadDeck();
+        loadWordlist();
+      }
     });
   }, [checkAuth, loadLanguages, loadDeck, loadWordlist]);
 
   // Reload wordlist when navigating to Wordlist or Lessons page
   useEffect(() => {
-    if (activePage === 'wordlist' || activePage === 'lessons') {
+    if (isAuthenticated && (activePage === 'wordlist' || activePage === 'lessons')) {
       loadWordlist();
     }
-  }, [activePage, loadWordlist]);
+  }, [isAuthenticated, activePage, loadWordlist]);
 
-  // Global Keyboard Shortcuts
+  // Global Keyboard Shortcuts (only when authenticated)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isModalOpenRef.current) {
-          setIsModalOpen(false);
-        }
-        return;
-      }
+      if (!isAuthenticatedRef.current) return;
 
       const activeEl = document.activeElement;
       if (activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName)) {
@@ -338,14 +338,7 @@ export function App() {
   const handleQuickWordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const raw = quickInput.trim();
-    if (!raw) return;
-
-    if (!token) {
-      setIsModalOpen(true);
-      setAuthTab('login');
-      setAuthError('Please sign in or register to add words.');
-      return;
-    }
+    if (!raw || !token) return;
 
     let text = raw;
     let translation = raw;
@@ -447,8 +440,9 @@ export function App() {
       const u = await fetchMe();
       setUser(u);
       localStorage.setItem('ll_user', JSON.stringify(u));
-      setIsModalOpen(false);
       setAuthError(null);
+      setActivePage('lessons');
+      setActiveLesson(null);
       triggerHaptic('success');
       loadLanguages();
       loadDeck();
@@ -480,8 +474,9 @@ export function App() {
       setToken(tok);
       setUser(res.user);
       localStorage.setItem('ll_user', JSON.stringify(res.user));
-      setIsModalOpen(false);
       setAuthError(null);
+      setActivePage('lessons');
+      setActiveLesson(null);
       triggerHaptic('success');
       loadLanguages();
       loadDeck();
@@ -513,8 +508,9 @@ export function App() {
       const u = await fetchMe();
       setUser(u);
       localStorage.setItem('ll_user', JSON.stringify(u));
-      setIsModalOpen(false);
       setAuthError(null);
+      setActivePage('lessons');
+      setActiveLesson(null);
       loadLanguages();
       loadDeck();
       loadWordlist();
@@ -526,8 +522,9 @@ export function App() {
         setToken(tok);
         setUser(regRes.user);
         localStorage.setItem('ll_user', JSON.stringify(regRes.user));
-        setIsModalOpen(false);
         setAuthError(null);
+        setActivePage('lessons');
+        setActiveLesson(null);
         loadLanguages();
         loadDeck();
         loadWordlist();
@@ -543,109 +540,111 @@ export function App() {
     setToken(null);
     setUser(null);
     localStorage.removeItem('ll_user');
-    loadDeck();
-    loadWordlist();
+    setDeck([]);
+    setAllWords([]);
+    setActivePage('lessons');
+    setActiveLesson(null);
+    setAuthTab('login');
+    setAuthError(null);
   };
 
   const currentCard = deck.length > 0 && currentIndex < deck.length ? deck[currentIndex] : null;
 
   return (
     <div className="app-shell">
-      {/* App Header with Cheeseburger Button */}
+      {/* App Header */}
       <Header
         user={user}
         token={token}
         onToggleMenu={() => setIsMenuOpen((prev) => !prev)}
         onNavigate={handleNavigate}
-        onOpenAuth={() => {
-          setIsModalOpen(true);
-          setAuthTab('login');
-          setAuthError(null);
-        }}
         onLogout={handleLogout}
       />
 
-      {/* Main Scrollable Content Container */}
-      <main className="app-container">
-        {activePage === 'lessons' ? (
-          activeLesson ? (
-            <LessonDetailView
-              lesson={activeLesson}
-              onClose={() => setActiveLesson(null)}
-            />
-          ) : (
-            <LessonsView
-              words={allWords}
-              isLoading={isWordsLoading}
-              onSelectLesson={(lesson) => setActiveLesson(lesson)}
-              onRefresh={loadWordlist}
-            />
-          )
-        ) : activePage === 'flashcards' ? (
-          <FlashcardsView
-            currentCard={currentCard}
-            isFlipped={isFlipped}
-            hasWords={allWords.length > 0}
-            onFlipCard={handleFlipCard}
-            onRatingClick={handleRatingClick}
-            onAudioClick={handleAudioClick}
-            onRestartDeck={handleRestartDeck}
+      {/* Main Content */}
+      {!isAuthenticated ? (
+        <main className="app-container auth-page-container">
+          <AuthView
+            authTab={authTab}
+            authError={authError}
+            languages={languages}
+            loginIdentifier={loginIdentifier}
+            loginPassword={loginPassword}
+            regUsername={regUsername}
+            regEmail={regEmail}
+            regPassword={regPassword}
+            regTargetLang={regTargetLang}
+            onTabChange={(tab) => {
+              setAuthTab(tab);
+              setAuthError(null);
+            }}
+            onLoginIdentifierChange={setLoginIdentifier}
+            onLoginPasswordChange={setLoginPassword}
+            onRegUsernameChange={setRegUsername}
+            onRegEmailChange={setRegEmail}
+            onRegPasswordChange={setRegPassword}
+            onRegTargetLangChange={setRegTargetLang}
+            onLoginSubmit={handleLoginSubmit}
+            onRegisterSubmit={handleRegisterSubmit}
+            onQuickDemoLogin={handleQuickDemoLogin}
           />
-        ) : (
-          <WordlistView
-            words={allWords}
-            isLoading={isWordsLoading}
-            onDeleteWord={handleDeleteWord}
-            onRefresh={loadWordlist}
-          />
-        )}
-      </main>
+        </main>
+      ) : (
+        <>
+          <main className="app-container">
+            {activePage === 'lessons' ? (
+              activeLesson ? (
+                <LessonDetailView
+                  lesson={activeLesson}
+                  onClose={() => setActiveLesson(null)}
+                />
+              ) : (
+                <LessonsView
+                  words={allWords}
+                  isLoading={isWordsLoading}
+                  onSelectLesson={(lesson) => setActiveLesson(lesson)}
+                  onRefresh={loadWordlist}
+                />
+              )
+            ) : activePage === 'flashcards' ? (
+              <FlashcardsView
+                currentCard={currentCard}
+                isFlipped={isFlipped}
+                hasWords={allWords.length > 0}
+                onFlipCard={handleFlipCard}
+                onRatingClick={handleRatingClick}
+                onAudioClick={handleAudioClick}
+                onRestartDeck={handleRestartDeck}
+              />
+            ) : (
+              <WordlistView
+                words={allWords}
+                isLoading={isWordsLoading}
+                onDeleteWord={handleDeleteWord}
+                onRefresh={loadWordlist}
+              />
+            )}
+          </main>
 
-      {/* Pinned Bottom Word Input Dock - Hidden on active lesson view */}
-      {!activeLesson && (
-        <BottomDock
-          quickInput={quickInput}
-          isSending={isSending}
-          onInputChange={setQuickInput}
-          onSubmit={handleQuickWordSubmit}
-        />
+          {/* Pinned Bottom Word Input Dock - Hidden on active lesson view */}
+          {!activeLesson && (
+            <BottomDock
+              quickInput={quickInput}
+              isSending={isSending}
+              onInputChange={setQuickInput}
+              onSubmit={handleQuickWordSubmit}
+            />
+          )}
+
+          {/* Cheeseburger Navigation Drawer Menu */}
+          <BurgerMenu
+            isOpen={isMenuOpen}
+            activePage={activePage}
+            onClose={() => setIsMenuOpen(false)}
+            onNavigate={handleNavigate}
+          />
+        </>
       )}
-
-      {/* Cheeseburger Navigation Drawer Menu */}
-      <BurgerMenu
-        isOpen={isMenuOpen}
-        activePage={activePage}
-        onClose={() => setIsMenuOpen(false)}
-        onNavigate={handleNavigate}
-      />
-
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={isModalOpen}
-        authTab={authTab}
-        authError={authError}
-        languages={languages}
-        loginIdentifier={loginIdentifier}
-        loginPassword={loginPassword}
-        regUsername={regUsername}
-        regEmail={regEmail}
-        regPassword={regPassword}
-        regTargetLang={regTargetLang}
-        onClose={() => setIsModalOpen(false)}
-        onTabChange={(tab) => {
-          setAuthTab(tab);
-          setAuthError(null);
-        }}
-        onLoginIdentifierChange={setLoginIdentifier}
-        onLoginPasswordChange={setLoginPassword}
-        onRegUsernameChange={setRegUsername}
-        onRegEmailChange={setRegEmail}
-        onRegPasswordChange={setRegPassword}
-        onRegTargetLangChange={setRegTargetLang}
-        onLoginSubmit={handleLoginSubmit}
-        onRegisterSubmit={handleRegisterSubmit}
-        onQuickDemoLogin={handleQuickDemoLogin}
-      />
     </div>
   );
 }

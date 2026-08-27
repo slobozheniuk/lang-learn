@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
+from tests.mobile.conftest import login_demo_user
 
 SCREENSHOTS_DIR = Path("tests/screenshots")
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -9,10 +10,25 @@ SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 def test_mobile_layout_and_fixed_elements(mobile_page: Page):
     """Test Layout & Fixed Elements:
-    Header is fixed at top, bottom dock is pinned at bottom via normal flex flow,
-    middle container scrolls without viewport overscroll.
+    - Unauthenticated state: only Auth screen and simple header branding are shown.
+      Burger menu, drawer, views, and bottom dock are hidden.
+    - Authenticated state: Header is fixed at top, bottom dock is pinned at bottom via normal flex flow,
+      middle container scrolls without viewport overscroll.
     """
     page = mobile_page
+
+    # Verify unauthenticated state on load
+    expect(page.locator("#auth-view")).to_be_visible()
+    expect(page.locator("#login-form")).to_be_visible()
+    expect(page.locator("#burger-menu-btn")).to_have_count(0)
+    expect(page.locator("#burger-menu-drawer")).to_have_count(0)
+    expect(page.locator(".bottom-dock")).to_have_count(0)
+    expect(page.locator("#lessons-view")).to_have_count(0)
+    expect(page.locator("#flashcards-view")).to_have_count(0)
+    expect(page.locator("#wordlist-view")).to_have_count(0)
+
+    # Log in
+    login_demo_user(page)
 
     # Verify header is rendered at the top
     header = page.locator(".app-header")
@@ -20,6 +36,9 @@ def test_mobile_layout_and_fixed_elements(mobile_page: Page):
     header_box = header.bounding_box()
     assert header_box is not None
     assert header_box["y"] == 0, f"Header should start at y=0, got {header_box['y']}"
+
+    # Verify burger menu button is now visible
+    expect(page.locator("#burger-menu-btn")).to_be_visible()
 
     # Verify bottom input dock is pinned at the bottom of the viewport in normal flex flow
     bottom_dock = page.locator(".bottom-dock")
@@ -60,18 +79,16 @@ def test_mobile_layout_and_fixed_elements(mobile_page: Page):
     assert screenshot_path.exists() and screenshot_path.stat().st_size > 0
 
 
-def test_auth_modal_open_tabs_and_close(mobile_page: Page):
-    """Behavior (a): Clicking sign in button opens modal,
-    supports tab switching and close button.
+def test_auth_view_tabs_and_flow(mobile_page: Page):
+    """Behavior (a): Dedicated Auth / Login screen is directly shown when unauthenticated,
+    supports tab switching (Sign In / Register), quick demo login, and Sign Out.
     """
     page = mobile_page
 
-    btn_login = page.locator("#btn-open-login")
-    expect(btn_login).to_be_visible()
-    btn_login.click()
-
-    auth_modal = page.locator("#auth-modal")
-    expect(auth_modal).to_have_class(re.compile(r"(is-open|open|active|show)"))
+    # Verify dedicated Auth screen is visible directly in viewport
+    auth_view = page.locator("#auth-view")
+    expect(auth_view).to_be_visible()
+    expect(page.locator("#login-form")).to_be_visible()
 
     # Test tab switching to Register
     tab_register = page.locator("#tab-register")
@@ -87,11 +104,28 @@ def test_auth_modal_open_tabs_and_close(mobile_page: Page):
     expect(page.locator("#login-form")).to_be_visible()
     expect(page.locator("#register-form")).not_to_be_visible()
 
-    # Test close button
-    close_btn = page.locator("#modal-close-btn")
-    expect(close_btn).to_be_visible()
-    close_btn.click()
-    expect(auth_modal).not_to_have_class(re.compile(r"is-open"))
+    # Test Quick Demo Login
+    quick_demo_btn = page.locator("#quick-demo-btn")
+    expect(quick_demo_btn).to_be_visible()
+    quick_demo_btn.click()
+
+    # Verify successful authentication
+    expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    expect(page.locator("#lessons-view")).to_be_visible()
+    expect(page.locator("#auth-view")).to_have_count(0)
+    expect(page.locator("#burger-menu-btn")).to_be_visible()
+
+    # Test Sign Out button
+    btn_logout = page.locator("#btn-logout")
+    expect(btn_logout).to_be_visible()
+    btn_logout.click()
+
+    # Verify immediate return to unauthenticated Auth screen
+    expect(page.locator("#auth-view")).to_be_visible()
+    expect(page.locator("#login-form")).to_be_visible()
+    expect(page.locator("#burger-menu-btn")).to_have_count(0)
+    expect(page.locator("#lessons-view")).to_have_count(0)
+    expect(page.locator(".bottom-dock")).to_have_count(0)
 
 
 def test_card_flip_front_to_back_and_reverse(mobile_page: Page):
@@ -100,11 +134,8 @@ def test_card_flip_front_to_back_and_reverse(mobile_page: Page):
     """
     page = mobile_page
 
-    # Log in if needed
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    # Log in
+    login_demo_user(page)
 
     # Navigate to Flashcards page
     page.locator("#burger-menu-btn").click()
@@ -143,10 +174,7 @@ def test_sound_button_triggers_speech_synthesis(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Navigate to Flashcards
     page.locator("#burger-menu-btn").click()
@@ -199,10 +227,7 @@ def test_srs_buttons_submission_and_no_sticky_focus(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Navigate to Flashcards
     page.locator("#burger-menu-btn").click()
@@ -251,20 +276,9 @@ def test_word_addition_and_flashcard_display(mobile_page: Page):
     """
     page = mobile_page
 
-    # Log in via Quick Demo button in Auth modal
-    btn_login = page.locator("#btn-open-login")
-    btn_login.click()
-
-    auth_modal = page.locator("#auth-modal")
-    expect(auth_modal).to_have_class(re.compile(r"is-open"))
-
-    quick_demo_btn = page.locator("#quick-demo-btn")
-    expect(quick_demo_btn).to_be_visible()
-    quick_demo_btn.click()
-
-    # Wait for login completion and modal close
-    expect(auth_modal).not_to_have_class(re.compile(r"is-open"))
-    expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    # Verify auth view on startup and log in
+    expect(page.locator("#auth-view")).to_be_visible()
+    login_demo_user(page)
 
     # Navigate to Flashcards
     page.locator("#burger-menu-btn").click()
@@ -311,11 +325,8 @@ def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
     """
     page = mobile_page
 
-    # Log in if needed
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    # Log in
+    login_demo_user(page)
 
     # Navigate to Flashcards
     page.locator("#burger-menu-btn").click()
@@ -404,15 +415,18 @@ def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
 
 def test_narrow_mobile_viewport_320px_no_overflow(narrow_mobile_page: Page):
     """Verify that on ultra-narrow mobile viewports (320px width),
-    the 3 action buttons and all layout elements fit perfectly without horizontal overflow.
+    the auth screen and the 3 action buttons fit perfectly without horizontal overflow.
     """
     page = narrow_mobile_page
 
+    # Verify auth screen on 320px viewport has no horizontal overflow
+    expect(page.locator("#auth-view")).to_be_visible()
+    scroll_width_unauth = page.evaluate("() => document.documentElement.scrollWidth")
+    client_width_unauth = page.evaluate("() => document.documentElement.clientWidth")
+    assert scroll_width_unauth <= client_width_unauth == 320
+
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Navigate to Flashcards
     page.locator("#burger-menu-btn").click()

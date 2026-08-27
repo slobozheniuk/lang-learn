@@ -2,20 +2,30 @@ import re
 from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
+from tests.mobile.conftest import login_demo_user
 
 SCREENSHOTS_DIR = Path("tests/screenshots")
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def test_lessons_is_default_page_on_load(mobile_page: Page):
-    """Verify that 'Lessons' is the initial default page on load:
-    - #lessons-view is visible immediately.
+    """Verify that when unauthenticated, only Auth page is shown,
+    and upon login, 'Lessons' is the initial default page:
+    - #auth-view is visible when not logged in, #lessons-view is hidden.
+    - Upon login, #lessons-view is visible immediately.
     - Burger menu highlights Lessons as active.
-    - Brand logo click navigates to Lessons.
+    - Brand logo click navigates to / stays on Lessons.
     """
     page = mobile_page
 
-    # Verify Lessons view is visible on initial load
+    # Unauthenticated state: auth screen visible, lessons hidden
+    expect(page.locator("#auth-view")).to_be_visible()
+    expect(page.locator("#lessons-view")).to_have_count(0)
+
+    # Log in
+    login_demo_user(page)
+
+    # Verify Lessons view is visible upon login
     lessons_view = page.locator("#lessons-view")
     expect(lessons_view).to_be_visible()
 
@@ -48,10 +58,7 @@ def test_lesson_cards_chunking_and_progress(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Seed 3 words
     page.evaluate("""async () => {
@@ -111,10 +118,7 @@ def test_lesson_detail_opens_hides_dock_and_closes(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Ensure at least 5 words exist
     page.evaluate("""async () => {
@@ -176,10 +180,7 @@ def test_lesson_detail_interactive_study_and_completion(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Seed 2 words for quick study test
     page.evaluate("""async () => {
@@ -248,10 +249,7 @@ def test_flashcards_restart_deck_button_on_completion(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Seed 2 words
     page.evaluate("""async () => {

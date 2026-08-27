@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
+from tests.mobile.conftest import login_demo_user
 
 SCREENSHOTS_DIR = Path("tests/screenshots")
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -9,13 +10,20 @@ SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 def test_cheeseburger_menu_open_and_close(mobile_page: Page):
     """Test Cheeseburger Menu:
-    - Button ☰ is visible in header.
+    - Button ☰ is NOT visible when unauthenticated.
+    - After login, ☰ is visible in header.
     - Clicking ☰ opens drawer menu & backdrop.
     - Drawer header does not contain redundant 'Menu' text.
     - Clicking backdrop outside drawer closes drawer.
     - Opening again and clicking close button (✕) closes drawer.
     """
     page = mobile_page
+
+    # Verify burger menu button is not present before login
+    expect(page.locator("#burger-menu-btn")).to_have_count(0)
+
+    # Log in
+    login_demo_user(page)
 
     burger_btn = page.locator("#burger-menu-btn")
     expect(burger_btn).to_be_visible()
@@ -53,7 +61,7 @@ def test_cheeseburger_menu_open_and_close(mobile_page: Page):
 def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     """Test switching cleanly between Lessons, Flashcards and Wordlist pages:
     - Verify header does not contain page title badge to prevent overflow.
-    - Initial page is Lessons.
+    - Initial page is Lessons upon authentication.
     - Navigating to Wordlist displays word list view cleanly.
     - Navigating to Flashcards displays flashcard learning view.
     - Navigating back to Lessons displays lessons view.
@@ -61,10 +69,7 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Verify page title badge was removed from header
     expect(page.locator("#page-title")).to_have_count(0)
@@ -119,10 +124,7 @@ def test_wordlist_recall_rate_badges_and_color_coding(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Seed 4 words with specific recall rates (clearing existing words first)
     page.evaluate("""async () => {
@@ -210,7 +212,6 @@ def test_wordlist_recall_rate_badges_and_color_coding(mobile_page: Page):
     # Verify 100% recall card has vibrant green border (.word-card-perfect)
     expect(card_perfect).to_have_class(re.compile(r"word-card-perfect"))
     border_color = card_perfect.evaluate("el => window.getComputedStyle(el).borderColor")
-    # Vibrant green #10b981 is rgb(16, 185, 129)
     assert "16, 185, 129" in border_color or "rgb(16, 185, 129)" in border_color
 
     # Verify center content structure: Bold target word and translation
@@ -238,10 +239,7 @@ def test_wordlist_three_dot_menu_and_delete_word(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Create a word specifically to delete via bottom dock
     word_to_delete = "unique_word_to_delete"
@@ -285,10 +283,7 @@ def test_wordlist_pagination_controls(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Create 25 words to exceed 20 items per page
     page.evaluate("""async () => {
@@ -347,10 +342,7 @@ def test_wordlist_three_dot_menu_flip_up_and_outside_click(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Seed 8 words
     page.evaluate("""async () => {
@@ -418,10 +410,7 @@ def test_wordlist_scroll_container_and_bottom_clearance(mobile_page: Page):
     page = mobile_page
 
     # Log in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+    login_demo_user(page)
 
     # Seed 12 words to produce a long list
     page.evaluate("""async () => {
@@ -470,4 +459,3 @@ def test_wordlist_scroll_container_and_bottom_clearance(mobile_page: Page):
         f"Lowest card bottom ({last_card_box['y'] + last_card_box['height']}) "
         f"should be above floating dock top ({dock_box['y']})"
     )
-
