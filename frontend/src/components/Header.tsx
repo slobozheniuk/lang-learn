@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="brand"
             onClick={(e) => {
               e.preventDefault();
-              onNavigate('flashcards');
+              onNavigate('lessons');
             }}
           >
             <span className="brand-icon">⚡</span>

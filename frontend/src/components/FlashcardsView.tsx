@@ -4,17 +4,21 @@ import { FlashcardItem } from '../types';
 interface FlashcardsViewProps {
   currentCard: FlashcardItem | null;
   isFlipped: boolean;
+  hasWords?: boolean;
   onFlipCard: (e: React.MouseEvent) => void;
   onRatingClick: (rating: 'again' | 'good', e: React.MouseEvent<HTMLButtonElement>) => void;
   onAudioClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onRestartDeck?: () => void;
 }
 
 export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
   currentCard,
   isFlipped,
+  hasWords = false,
   onFlipCard,
   onRatingClick,
   onAudioClick,
+  onRestartDeck,
 }) => {
   return (
     <div id="flashcards-view" className="flashcards-view">
@@ -118,21 +122,33 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
         </div>
       </div>
 
-      {/* Clean Empty State */}
+      {/* Clean Empty / Completion State */}
       <div
         id="empty-state"
         className="empty-state"
         style={{ display: !currentCard ? 'flex' : 'none' }}
       >
         <div id="empty-icon" className="empty-icon">
-          ✨
+          {hasWords ? '🎉' : '✨'}
         </div>
         <h3 id="empty-title" className="empty-title">
-          No flashcards yet
+          {hasWords ? 'Session Complete!' : 'No flashcards yet'}
         </h3>
         <p id="empty-desc" className="empty-desc">
-          Type a word in the bar below to start learning!
+          {hasWords
+            ? "You've reviewed all cards in this session!"
+            : 'Type a word in the bar below to start learning!'}
         </p>
+        {onRestartDeck && (
+          <button
+            id="btn-restart-deck"
+            className="btn btn-primary btn-restart-deck"
+            style={{ marginTop: '0.5rem' }}
+            onClick={onRestartDeck}
+          >
+            🔄 Restart Deck
+          </button>
+        )}
       </div>
     </div>
   );

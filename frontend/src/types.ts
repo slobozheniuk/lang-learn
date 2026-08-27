@@ -74,4 +74,14 @@ export interface DueReviewItem {
   is_new?: boolean;
 }
 
-export type PageView = 'flashcards' | 'wordlist';
+export type PageView = 'lessons' | 'flashcards' | 'wordlist';
+
+export interface Lesson {
+  id: number;
+  number: number;
+  title: string;
+  words: Word[];
+  totalWords: number;
+  targetCount: number;
+  isComplete: boolean;
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FlashcardItem, Language, PageView, User, Word } from './types';
+import { FlashcardItem, Language, Lesson, PageView, User, Word } from './types';
 import {
   setApiToken,
   fetchMe,
@@ -19,6 +19,8 @@ import {
 } from './utils/srs';
 import { Header } from './components/Header';
 import { BurgerMenu } from './components/BurgerMenu';
+import { LessonsView } from './components/LessonsView';
+import { LessonDetailView } from './components/LessonDetailView';
 import { FlashcardsView } from './components/FlashcardsView';
 import { WordlistView } from './components/WordlistView';
 import { BottomDock } from './components/BottomDock';
@@ -26,7 +28,8 @@ import { AuthModal } from './components/AuthModal';
 
 export function App() {
   // Navigation & View State
-  const [activePage, setActivePage] = useState<PageView>('flashcards');
+  const [activePage, setActivePage] = useState<PageView>('lessons');
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
   // Authentication State
@@ -232,12 +235,45 @@ export function App() {
     }
   }, [loadWordlist]);
 
+  // Restart Deck handler
+  const handleRestartDeck = useCallback(async () => {
+    triggerHaptic('impact');
+    setIsFlipped(false);
+    try {
+      const words = (await fetchWords(100)) || [];
+      setAllWords(words);
+      if (words.length > 0) {
+        const cards: FlashcardItem[] = words.map((w) => ({
+          ...w,
+          stats: w.user_stats || null,
+          user_stats: w.user_stats || null,
+          is_new: false,
+        }));
+        setDeck(cards);
+        setCurrentIndex(0);
+      } else {
+        await loadDeck();
+      }
+    } catch (err) {
+      console.warn('Failed to restart deck:', err);
+    }
+  }, [loadDeck]);
+
+  // Navigation handler that clears any open lesson detail
+  const handleNavigate = useCallback((page: PageView) => {
+    setActiveLesson(null);
+    setActivePage(page);
+  }, []);
+
   // Expose methods globally for testing / verification
   useEffect(() => {
     (window as any).loadDeck = loadDeck;
     (window as any).loadWordlist = loadWordlist;
     (window as any).submitRating = submitRating;
-  }, [loadDeck, loadWordlist, submitRating]);
+    (window as any).restartDeck = handleRestartDeck;
+    (window as any).setActiveLesson = setActiveLesson;
+    (window as any).setActivePage = setActivePage;
+  }, [loadDeck, loadWordlist, submitRating, handleRestartDeck]);
 
   // Initial boot
   useEffect(() => {
@@ -249,9 +285,9 @@ export function App() {
     });
   }, [checkAuth, loadLanguages, loadDeck, loadWordlist]);
 
-  // Reload wordlist when navigating to Wordlist page
+  // Reload wordlist when navigating to Wordlist or Lessons page
   useEffect(() => {
-    if (activePage === 'wordlist') {
+    if (activePage === 'wordlist' || activePage === 'lessons') {
       loadWordlist();
     }
   }, [activePage, loadWordlist]);
@@ -520,7 +556,7 @@ export function App() {
         user={user}
         token={token}
         onToggleMenu={() => setIsMenuOpen((prev) => !prev)}
-        onNavigate={(page) => setActivePage(page)}
+        onNavigate={handleNavigate}
         onOpenAuth={() => {
           setIsModalOpen(true);
           setAuthTab('login');
@@ -531,13 +567,29 @@ export function App() {
 
       {/* Main Scrollable Content Container */}
       <main className="app-container">
-        {activePage === 'flashcards' ? (
+        {activePage === 'lessons' ? (
+          activeLesson ? (
+            <LessonDetailView
+              lesson={activeLesson}
+              onClose={() => setActiveLesson(null)}
+            />
+          ) : (
+            <LessonsView
+              words={allWords}
+              isLoading={isWordsLoading}
+              onSelectLesson={(lesson) => setActiveLesson(lesson)}
+              onRefresh={loadWordlist}
+            />
+          )
+        ) : activePage === 'flashcards' ? (
           <FlashcardsView
             currentCard={currentCard}
             isFlipped={isFlipped}
+            hasWords={allWords.length > 0}
             onFlipCard={handleFlipCard}
             onRatingClick={handleRatingClick}
             onAudioClick={handleAudioClick}
+            onRestartDeck={handleRestartDeck}
           />
         ) : (
           <WordlistView
@@ -549,20 +601,22 @@ export function App() {
         )}
       </main>
 
-      {/* Pinned Bottom Word Input Dock */}
-      <BottomDock
-        quickInput={quickInput}
-        isSending={isSending}
-        onInputChange={setQuickInput}
-        onSubmit={handleQuickWordSubmit}
-      />
+      {/* Pinned Bottom Word Input Dock - Hidden on active lesson view */}
+      {!activeLesson && (
+        <BottomDock
+          quickInput={quickInput}
+          isSending={isSending}
+          onInputChange={setQuickInput}
+          onSubmit={handleQuickWordSubmit}
+        />
+      )}
 
       {/* Cheeseburger Navigation Drawer Menu */}
       <BurgerMenu
         isOpen={isMenuOpen}
         activePage={activePage}
         onClose={() => setIsMenuOpen(false)}
-        onNavigate={(page) => setActivePage(page)}
+        onNavigate={handleNavigate}
       />
 
       {/* Auth Modal */}

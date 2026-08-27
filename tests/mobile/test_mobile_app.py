@@ -106,6 +106,11 @@ def test_card_flip_front_to_back_and_reverse(mobile_page: Page):
         page.locator("#quick-demo-btn").click()
         expect(page.locator("#auth-nav")).to_contain_text("demo_student")
 
+    # Navigate to Flashcards page
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-flashcards").click()
+    expect(page.locator("#flashcards-view")).to_be_visible()
+
     # Add a card if deck is empty
     if page.locator("#empty-state").is_visible():
         page.locator("#quick-word-input").fill("luminary - светило")
@@ -142,6 +147,11 @@ def test_sound_button_triggers_speech_synthesis(mobile_page: Page):
         page.locator("#btn-open-login").click()
         page.locator("#quick-demo-btn").click()
         expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Navigate to Flashcards
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-flashcards").click()
+    expect(page.locator("#flashcards-view")).to_be_visible()
 
     # Add a known word
     test_word = "sonder"
@@ -193,6 +203,11 @@ def test_srs_buttons_submission_and_no_sticky_focus(mobile_page: Page):
         page.locator("#btn-open-login").click()
         page.locator("#quick-demo-btn").click()
         expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Navigate to Flashcards
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-flashcards").click()
+    expect(page.locator("#flashcards-view")).to_be_visible()
 
     # Add two words for testing
     page.locator("#quick-word-input").fill("apple - яблоко")
@@ -251,6 +266,11 @@ def test_word_addition_and_flashcard_display(mobile_page: Page):
     expect(auth_modal).not_to_have_class(re.compile(r"is-open"))
     expect(page.locator("#auth-nav")).to_contain_text("demo_student")
 
+    # Navigate to Flashcards
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-flashcards").click()
+    expect(page.locator("#flashcards-view")).to_be_visible()
+
     # Type a new word into the floating bottom dock
     word_text = "serendipity"
     word_translation = "счастливая случайность"
@@ -296,6 +316,11 @@ def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
         page.locator("#btn-open-login").click()
         page.locator("#quick-demo-btn").click()
         expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Navigate to Flashcards
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-flashcards").click()
+    expect(page.locator("#flashcards-view")).to_be_visible()
 
     # Add a card if deck is empty
     if page.locator("#empty-state").is_visible():
@@ -388,6 +413,11 @@ def test_narrow_mobile_viewport_320px_no_overflow(narrow_mobile_page: Page):
         page.locator("#btn-open-login").click()
         page.locator("#quick-demo-btn").click()
         expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Navigate to Flashcards
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-flashcards").click()
+    expect(page.locator("#flashcards-view")).to_be_visible()
 
     # Add word if needed
     if page.locator("#empty-state").is_visible():

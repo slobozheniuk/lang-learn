@@ -60,6 +60,19 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
 
         <nav className="drawer-nav">
           <button
+            id="nav-link-lessons"
+            className={`drawer-nav-item ${activePage === 'lessons' ? 'active' : ''}`}
+            onClick={() => {
+              onNavigate('lessons');
+              onClose();
+            }}
+          >
+            <span className="drawer-nav-icon">📚</span>
+            <span className="drawer-nav-label">Lessons</span>
+            {activePage === 'lessons' && <span className="active-dot" />}
+          </button>
+
+          <button
             id="nav-link-flashcards"
             className={`drawer-nav-item ${activePage === 'flashcards' ? 'active' : ''}`}
             onClick={() => {

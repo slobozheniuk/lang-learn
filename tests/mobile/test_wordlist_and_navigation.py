@@ -33,6 +33,7 @@ def test_cheeseburger_menu_open_and_close(mobile_page: Page):
     expect(drawer_header).not_to_contain_text("Menu")
 
     # Verify navigation links exist in drawer
+    expect(page.locator("#nav-link-lessons")).to_be_visible()
     expect(page.locator("#nav-link-flashcards")).to_be_visible()
     expect(page.locator("#nav-link-wordlist")).to_be_visible()
 
@@ -50,10 +51,12 @@ def test_cheeseburger_menu_open_and_close(mobile_page: Page):
 
 
 def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
-    """Test switching cleanly between Flashcards and Wordlist pages:
+    """Test switching cleanly between Lessons, Flashcards and Wordlist pages:
     - Verify header does not contain page title badge to prevent overflow.
+    - Initial page is Lessons.
     - Navigating to Wordlist displays word list view cleanly.
-    - Navigating back to Flashcards displays flashcard learning view.
+    - Navigating to Flashcards displays flashcard learning view.
+    - Navigating back to Lessons displays lessons view.
     """
     page = mobile_page
 
@@ -66,8 +69,8 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     # Verify page title badge was removed from header
     expect(page.locator("#page-title")).to_have_count(0)
 
-    # Initial page is Flashcards
-    expect(page.locator("#flashcards-view")).to_be_visible()
+    # Initial page is Lessons
+    expect(page.locator("#lessons-view")).to_be_visible()
 
     # Open burger menu and navigate to Wordlist
     page.locator("#burger-menu-btn").click()
@@ -79,9 +82,9 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     expect(page.locator("#burger-menu-drawer")).not_to_have_class(re.compile(r"is-open"))
     expect(page.locator("#wordlist-view")).to_be_visible()
     expect(page.locator(".wordlist-heading")).to_have_text("Wordlist")
-    expect(page.locator("#flashcards-view")).not_to_be_visible()
+    expect(page.locator("#lessons-view")).not_to_be_visible()
 
-    # Open burger menu and navigate back to Flashcards
+    # Open burger menu and navigate to Flashcards
     page.locator("#burger-menu-btn").click()
     nav_flashcards = page.locator("#nav-link-flashcards")
     expect(nav_flashcards).to_be_visible()
@@ -91,6 +94,17 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     expect(page.locator("#burger-menu-drawer")).not_to_have_class(re.compile(r"is-open"))
     expect(page.locator("#flashcards-view")).to_be_visible()
     expect(page.locator("#wordlist-view")).not_to_be_visible()
+
+    # Open burger menu and navigate back to Lessons
+    page.locator("#burger-menu-btn").click()
+    nav_lessons = page.locator("#nav-link-lessons")
+    expect(nav_lessons).to_be_visible()
+    nav_lessons.click()
+
+    # Verify Lessons view is shown and drawer is closed
+    expect(page.locator("#burger-menu-drawer")).not_to_have_class(re.compile(r"is-open"))
+    expect(page.locator("#lessons-view")).to_be_visible()
+    expect(page.locator("#flashcards-view")).not_to_be_visible()
 
 
 def test_wordlist_recall_rate_badges_and_color_coding(mobile_page: Page):
@@ -159,6 +173,12 @@ def test_wordlist_recall_rate_badges_and_color_coding(mobile_page: Page):
     page.locator("#burger-menu-btn").click()
     page.locator("#nav-link-wordlist").click()
     expect(page.locator("#wordlist-view")).to_be_visible()
+
+    # Filter search to display the 4 seeded test words on single page
+    search_input = page.locator("#wordlist-search-input")
+    if search_input.is_visible():
+        search_input.fill("word_")
+        page.wait_for_timeout(200)
 
     # Find the cards
     card_red = page.locator(".word-card:has-text('word_red_zero')")
