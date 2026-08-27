@@ -159,7 +159,7 @@ button {
   max-width: 680px;
   width: 100%;
   margin: 0 auto;
-  padding: 1.25rem 1rem calc(5.5rem + env(safe-area-inset-bottom, 0px)) 1rem;
+  padding: 1.25rem 1rem calc(7rem + env(safe-area-inset-bottom, 0px)) 1rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -818,7 +818,7 @@ button {
   left: 0;
   right: 0;
   z-index: 99999;
-  padding: 0.6rem 0.75rem calc(0.6rem + env(safe-area-inset-bottom, 0px)) 0.75rem;
+  padding: 1.2rem 0.75rem calc(1.2rem + env(safe-area-inset-bottom, 0px)) 0.75rem;
   display: flex;
   justify-content: center;
   background: var(--bg-header);
@@ -844,7 +844,7 @@ button {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
-  padding: 0.25rem 0.35rem 0.25rem 0.9rem;
+  padding: 0.5rem 0.6rem 0.5rem 1.1rem;
   transition: border-color 0.15s ease;
 }
 
