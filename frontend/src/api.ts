@@ -1,18 +1,20 @@
 import { AuthResponse, DueReviewItem, Language, RegisterResponse, User, Word } from './types';
 
-let currentToken: string | null = localStorage.getItem('ll_token');
+let currentToken: string | null = typeof localStorage !== 'undefined' ? localStorage.getItem('ll_token') : null;
 
 export function setApiToken(token: string | null) {
   currentToken = token;
-  if (token) {
-    localStorage.setItem('ll_token', token);
-  } else {
-    localStorage.removeItem('ll_token');
+  if (typeof localStorage !== 'undefined') {
+    if (token) {
+      localStorage.setItem('ll_token', token);
+    } else {
+      localStorage.removeItem('ll_token');
+    }
   }
 }
 
 export function getApiToken(): string | null {
-  return currentToken;
+  return currentToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('ll_token') : null);
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -24,8 +26,9 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     headers['Content-Type'] = 'application/json';
   }
 
-  if (currentToken) {
-    headers['Authorization'] = `Bearer ${currentToken}`;
+  const token = getApiToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   try {
@@ -35,15 +38,19 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     });
 
     if (response.status === 401) {
-      if (currentToken) {
+      if (token) {
         setApiToken(null);
-        localStorage.removeItem('ll_user');
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('ll_user');
+        }
       }
     }
 
     const contentType = response.headers.get('content-type') || '';
     let data: any = null;
-    if (contentType.includes('application/json')) {
+    if (response.status === 204) {
+      data = null;
+    } else if (contentType.includes('application/json')) {
       data = await response.json();
     } else {
       data = await response.text();
@@ -92,8 +99,18 @@ export async function fetchLanguages(): Promise<Language[]> {
   return api<Language[]>('/api/v1/languages/');
 }
 
-export async function fetchWords(limit: number = 50): Promise<Word[]> {
-  return api<Word[]>(`/api/v1/words/?limit=${limit}`);
+export async function fetchWords(
+  limit: number = 100,
+  skip: number = 0,
+  languageCode?: string,
+  search?: string
+): Promise<Word[]> {
+  const params = new URLSearchParams();
+  params.set('limit', limit.toString());
+  params.set('skip', skip.toString());
+  if (languageCode) params.set('language_code', languageCode);
+  if (search) params.set('search', search);
+  return api<Word[]>(`/api/v1/words/?${params.toString()}`);
 }
 
 export async function fetchDueReviews(): Promise<DueReviewItem[]> {
@@ -111,6 +128,12 @@ export async function createWord(body: {
   return api<Word>('/api/v1/words/', {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function deleteWord(wordId: number): Promise<void> {
+  return api<void>(`/api/v1/words/${wordId}`, {
+    method: 'DELETE',
   });
 }
 

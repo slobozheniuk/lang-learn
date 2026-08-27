@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FlashcardItem, Language, User } from './types';
+import { FlashcardItem, Language, PageView, User, Word } from './types';
 import {
   setApiToken,
   fetchMe,
@@ -9,78 +9,27 @@ import {
   fetchWords,
   fetchDueReviews,
   createWord,
+  deleteWord,
   submitReviewRating,
 } from './api';
-
-// Telegram Web App SDK Helpers
-function initTelegram() {
-  if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
-    try {
-      (window as any).Telegram.WebApp.ready();
-      (window as any).Telegram.WebApp.expand();
-    } catch (e) {
-      console.warn('Telegram WebApp init:', e);
-    }
-  }
-}
-
-function triggerHaptic(type: 'impact' | 'success' | 'error' = 'impact') {
-  if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.HapticFeedback) {
-    try {
-      if (type === 'impact') {
-        (window as any).Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-      } else if (type === 'success') {
-        (window as any).Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-      } else if (type === 'error') {
-        (window as any).Telegram.WebApp.HapticFeedback.notificationOccurred('error');
-      }
-    } catch (e) {
-      // Ignore haptic errors
-    }
-  }
-}
-
-// Pronunciation / Audio
-function pronounceWord(text: string, langCode: string = 'en') {
-  if (!text || typeof window === 'undefined') return;
-  if (!('speechSynthesis' in window)) {
-    console.warn('Speech synthesis not supported');
-    return;
-  }
-  try {
-    window.speechSynthesis.cancel();
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    const code = (langCode || 'en').toLowerCase().trim();
-    if (code === 'nl') {
-      utterance.lang = 'nl-NL';
-    } else if (code === 'ru') {
-      utterance.lang = 'ru-RU';
-    } else if (code === 'en') {
-      utterance.lang = 'en-US';
-    } else if (code === 'de') {
-      utterance.lang = 'de-DE';
-    } else if (code === 'fr') {
-      utterance.lang = 'fr-FR';
-    } else if (code === 'es') {
-      utterance.lang = 'es-ES';
-    } else if (code === 'it') {
-      utterance.lang = 'it-IT';
-    } else {
-      utterance.lang = code.includes('-') ? code : (code + '-' + code.toUpperCase());
-    }
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    utterance.onerror = (e) => console.warn('Utterance error:', e);
-    window.speechSynthesis.speak(utterance);
-  } catch (e) {
-    console.warn('Speech synthesis error:', e);
-  }
-}
+import {
+  initTelegram,
+  triggerHaptic,
+  pronounceWord,
+} from './utils/srs';
+import { Header } from './components/Header';
+import { BurgerMenu } from './components/BurgerMenu';
+import { FlashcardsView } from './components/FlashcardsView';
+import { WordlistView } from './components/WordlistView';
+import { BottomDock } from './components/BottomDock';
+import { AuthModal } from './components/AuthModal';
 
 export function App() {
+  // Navigation & View State
+  const [activePage, setActivePage] = useState<PageView>('flashcards');
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+
+  // Authentication State
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('ll_token') || null);
   const [user, setUser] = useState<User | null>(() => {
     try {
@@ -90,11 +39,15 @@ export function App() {
     }
   });
 
+  // Data State
   const [languages, setLanguages] = useState<Language[]>([]);
   const [deck, setDeck] = useState<FlashcardItem[]>([]);
+  const [allWords, setAllWords] = useState<Word[]>([]);
+  const [isWordsLoading, setIsWordsLoading] = useState<boolean>(false);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
+  // Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [authError, setAuthError] = useState<string | null>(null);
@@ -110,7 +63,7 @@ export function App() {
   const [quickInput, setQuickInput] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  // Refs for stable callbacks & listeners
+  // Stable refs for event listeners & callbacks
   const tokenRef = useRef(token);
   tokenRef.current = token;
   const userRef = useRef(user);
@@ -121,49 +74,69 @@ export function App() {
   currentIndexRef.current = currentIndex;
   const isModalOpenRef = useRef(isModalOpen);
   isModalOpenRef.current = isModalOpen;
+  const activePageRef = useRef(activePage);
+  activePageRef.current = activePage;
 
-  // Deck loading function
-  const loadDeck = useCallback(async (selectWordId?: number | null, fallbackWord?: FlashcardItem | null) => {
-    setIsFlipped(false);
+  // Load Wordlist
+  const loadWordlist = useCallback(async () => {
+    setIsWordsLoading(true);
     try {
-      let cards: FlashcardItem[] = [];
-      if (tokenRef.current) {
-        const dueItems = await fetchDueReviews();
-        cards = (dueItems || []).map((item) => ({
-          ...item.word,
-          stats: item.stats,
-          is_new: item.is_new,
-        }));
-      } else {
-        const words = await fetchWords(50);
-        cards = words || [];
-      }
-
-      if (fallbackWord) {
-        const hasFallback = cards.some((w) => w.id === fallbackWord.id);
-        if (!hasFallback) {
-          cards.unshift(fallbackWord);
-        }
-      }
-
-      setDeck(cards);
-      if (selectWordId) {
-        const foundIdx = cards.findIndex((w) => w.id === selectWordId);
-        setCurrentIndex(foundIdx >= 0 ? foundIdx : 0);
-      } else {
-        setCurrentIndex((prev) => (prev >= cards.length ? Math.max(0, cards.length - 1) : prev));
-      }
-    } catch (err) {
-      console.error('Error loading deck:', err);
-      if (fallbackWord) {
-        setDeck([fallbackWord]);
-        setCurrentIndex(0);
-      } else {
-        setDeck([]);
-        setCurrentIndex(0);
-      }
+      const words = await fetchWords(100);
+      setAllWords(words || []);
+    } catch (e) {
+      console.warn('Failed to load wordlist:', e);
+      setAllWords([]);
+    } finally {
+      setIsWordsLoading(false);
     }
   }, []);
+
+  // Deck loading function
+  const loadDeck = useCallback(
+    async (selectWordId?: number | null, fallbackWord?: FlashcardItem | null) => {
+      setIsFlipped(false);
+      try {
+        let cards: FlashcardItem[] = [];
+        if (tokenRef.current) {
+          const dueItems = await fetchDueReviews();
+          cards = (dueItems || []).map((item) => ({
+            ...item.word,
+            stats: item.stats,
+            user_stats: item.stats,
+            is_new: item.is_new,
+          }));
+        } else {
+          const words = await fetchWords(50);
+          cards = words || [];
+        }
+
+        if (fallbackWord) {
+          const hasFallback = cards.some((w) => w.id === fallbackWord.id);
+          if (!hasFallback) {
+            cards.unshift(fallbackWord);
+          }
+        }
+
+        setDeck(cards);
+        if (selectWordId) {
+          const foundIdx = cards.findIndex((w) => w.id === selectWordId);
+          setCurrentIndex(foundIdx >= 0 ? foundIdx : 0);
+        } else {
+          setCurrentIndex((prev) => (prev >= cards.length ? Math.max(0, cards.length - 1) : prev));
+        }
+      } catch (err) {
+        console.error('Error loading deck:', err);
+        if (fallbackWord) {
+          setDeck([fallbackWord]);
+          setCurrentIndex(0);
+        } else {
+          setDeck([]);
+          setCurrentIndex(0);
+        }
+      }
+    },
+    []
+  );
 
   // Language loading function
   const loadLanguages = useCallback(async () => {
@@ -194,6 +167,27 @@ export function App() {
       localStorage.removeItem('ll_user');
     }
   }, []);
+
+  // Delete word from Wordlist
+  const handleDeleteWord = useCallback(
+    async (wordId: number) => {
+      try {
+        triggerHaptic('impact');
+        await deleteWord(wordId);
+        triggerHaptic('success');
+        // Remove from current wordlist state immediately
+        setAllWords((prev) => prev.filter((w) => w.id !== wordId));
+        // Also remove from deck if present
+        setDeck((prev) => prev.filter((w) => w.id !== wordId));
+        // Refresh wordlist in background to ensure sync
+        loadWordlist();
+      } catch (err) {
+        triggerHaptic('error');
+        console.error('Failed to delete word:', err);
+      }
+    },
+    [loadWordlist]
+  );
 
   // SRS Rating submission
   const submitRating = useCallback(async (rating: 'again' | 'good') => {
@@ -230,17 +224,20 @@ export function App() {
         return prevIdx;
       });
       setIsFlipped(false);
+      // Refresh words in background to update stats
+      loadWordlist();
     } catch (err) {
       triggerHaptic('error');
       console.error('Failed to submit review rating:', err);
     }
-  }, []);
+  }, [loadWordlist]);
 
-  // Expose loadDeck and submitRating globally for verification / interop
+  // Expose methods globally for testing / verification
   useEffect(() => {
     (window as any).loadDeck = loadDeck;
+    (window as any).loadWordlist = loadWordlist;
     (window as any).submitRating = submitRating;
-  }, [loadDeck, submitRating]);
+  }, [loadDeck, loadWordlist, submitRating]);
 
   // Initial boot
   useEffect(() => {
@@ -248,8 +245,16 @@ export function App() {
     checkAuth().then(() => {
       loadLanguages();
       loadDeck();
+      loadWordlist();
     });
-  }, [checkAuth, loadLanguages, loadDeck]);
+  }, [checkAuth, loadLanguages, loadDeck, loadWordlist]);
+
+  // Reload wordlist when navigating to Wordlist page
+  useEffect(() => {
+    if (activePage === 'wordlist') {
+      loadWordlist();
+    }
+  }, [activePage, loadWordlist]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -266,24 +271,26 @@ export function App() {
         return;
       }
 
-      if (e.code === 'Space') {
-        e.preventDefault();
-        setIsFlipped((prev) => !prev);
-        triggerHaptic('impact');
-      } else if (e.key === '1' || e.key === 'ArrowLeft' || e.key === 'x' || e.key === 'X') {
-        e.preventDefault();
-        submitRating('again');
-      } else if (
-        e.key === '2' ||
-        e.key === 'ArrowRight' ||
-        e.key === 'v' ||
-        e.key === 'V' ||
-        e.key === 'y' ||
-        e.key === 'Y' ||
-        e.key === 'Enter'
-      ) {
-        e.preventDefault();
-        submitRating('good');
+      if (activePageRef.current === 'flashcards') {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          setIsFlipped((prev) => !prev);
+          triggerHaptic('impact');
+        } else if (e.key === '1' || e.key === 'ArrowLeft' || e.key === 'x' || e.key === 'X') {
+          e.preventDefault();
+          submitRating('again');
+        } else if (
+          e.key === '2' ||
+          e.key === 'ArrowRight' ||
+          e.key === 'v' ||
+          e.key === 'V' ||
+          e.key === 'y' ||
+          e.key === 'Y' ||
+          e.key === 'Enter'
+        ) {
+          e.preventDefault();
+          submitRating('good');
+        }
       }
     };
 
@@ -330,6 +337,7 @@ export function App() {
       const newCard: FlashcardItem = {
         ...newWord,
         stats: null,
+        user_stats: null,
         is_new: true,
       };
 
@@ -340,8 +348,14 @@ export function App() {
       setCurrentIndex(0);
       setIsFlipped(false);
 
+      // Add to wordlist state
+      setAllWords((prev) => [newWord, ...prev.filter((w) => w.id !== newWord.id)]);
+
       loadDeck(newWord.id, newCard).catch((err) =>
         console.warn('Background loadDeck failed:', err)
+      );
+      loadWordlist().catch((err) =>
+        console.warn('Background loadWordlist failed:', err)
       );
     } catch (err) {
       triggerHaptic('error');
@@ -402,6 +416,7 @@ export function App() {
       triggerHaptic('success');
       loadLanguages();
       loadDeck();
+      loadWordlist();
     } catch (err: any) {
       setAuthError(err.message || 'Invalid username or password');
       triggerHaptic('error');
@@ -434,6 +449,7 @@ export function App() {
       triggerHaptic('success');
       loadLanguages();
       loadDeck();
+      loadWordlist();
     } catch (err: any) {
       setAuthError(err.message || 'Registration failed');
       triggerHaptic('error');
@@ -465,6 +481,7 @@ export function App() {
       setAuthError(null);
       loadLanguages();
       loadDeck();
+      loadWordlist();
     } catch {
       try {
         const regRes = await registerUser(demoUser);
@@ -477,6 +494,7 @@ export function App() {
         setAuthError(null);
         loadLanguages();
         loadDeck();
+        loadWordlist();
       } catch (regErr: any) {
         setAuthError(regErr.message || 'Quick demo login failed');
       }
@@ -490,406 +508,91 @@ export function App() {
     setUser(null);
     localStorage.removeItem('ll_user');
     loadDeck();
+    loadWordlist();
   };
 
   const currentCard = deck.length > 0 && currentIndex < deck.length ? deck[currentIndex] : null;
 
   return (
     <>
-      {/* App Header */}
-      <header className="app-header">
-        <div className="header-content">
-          <a href="/" className="brand">
-            <span className="brand-icon">⚡</span>
-            <span>LangLearn</span>
-          </a>
-          <div id="auth-nav" className="auth-nav">
-            {token && user ? (
-              <>
-                <div className="user-badge" title={'Logged in as ' + user.username}>
-                  <span>👤</span>
-                  <span className="user-name">{user.username}</span>
-                </div>
-                <button id="btn-logout" className="btn btn-outline btn-sm" onClick={handleLogout}>
-                  Sign Out
-                </button>
-              </>
-            ) : (
-              <button
-                id="btn-open-login"
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  setIsModalOpen(true);
-                  setAuthTab('login');
-                  setAuthError(null);
-                }}
-              >
-                Sign In / Register
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* App Header with Cheeseburger Button & Active Page */}
+      <Header
+        activePage={activePage}
+        user={user}
+        token={token}
+        onToggleMenu={() => setIsMenuOpen((prev) => !prev)}
+        onNavigate={(page) => setActivePage(page)}
+        onOpenAuth={() => {
+          setIsModalOpen(true);
+          setAuthTab('login');
+          setAuthError(null);
+        }}
+        onLogout={handleLogout}
+      />
+
+      {/* Cheeseburger Navigation Drawer Menu */}
+      <BurgerMenu
+        isOpen={isMenuOpen}
+        activePage={activePage}
+        onClose={() => setIsMenuOpen(false)}
+        onNavigate={(page) => setActivePage(page)}
+      />
 
       {/* Main Container */}
       <main className="app-container">
-        {/* 3D Flashcard Presentation */}
-        <div
-          id="flashcard-scene"
-          className="flashcard-scene"
-          style={{ display: currentCard ? 'block' : 'none' }}
-        >
-          <div
-            id="flashcard"
-            className={'flashcard' + (isFlipped ? ' is-flipped flipped' : '')}
-            role="button"
-            tabIndex={0}
-            aria-label="Flashcard. Click to flip"
-            aria-expanded={isFlipped ? 'true' : 'false'}
-            onClick={handleFlipCard}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setIsFlipped((f) => !f);
-              }
-            }}
-          >
-            {/* Front Face */}
-            <div className="card-face card-face-front">
-              <div className="card-main-content">
-                <div id="card-word" className="card-word">
-                  {currentCard ? currentCard.text : 'word'}
-                </div>
-                <div id="card-phonetic" className="card-phonetic">
-                  {currentCard?.phonetic
-                    ? '[' + currentCard.phonetic + ']'
-                    : currentCard?.pos
-                    ? '(' + currentCard.pos + ')'
-                    : ''}
-                </div>
-              </div>
-              <div className="card-bottom-hint">
-                <span>👆 Tap card to flip and reveal translation</span>
-              </div>
-            </div>
-
-            {/* Back Face */}
-            <div className="card-face card-face-back">
-              <div className="card-main-content">
-                <div id="card-translation" className="card-translation">
-                  {currentCard ? currentCard.translation : 'translation'}
-                </div>
-                <div
-                  id="card-context"
-                  className="card-context"
-                  style={{ display: currentCard?.context_phrase ? 'block' : 'none' }}
-                >
-                  {currentCard?.context_phrase ? '"' + currentCard.context_phrase + '"' : ''}
-                </div>
-              </div>
-              <div className="card-bottom-hint">
-                <span>Rate your recall below:</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SRS Action Buttons (Red ✕, Audio 🔊, Green ✓) */}
-        <div
-          id="srs-ratings-wrapper"
-          className="srs-ratings-wrapper"
-          style={{ display: currentCard ? 'flex' : 'none' }}
-        >
-          <div className="srs-buttons-grid">
-            <button
-              id="btn-srs-wrong"
-              className="srs-btn srs-btn-again srs-btn-wrong"
-              data-rating="again"
-              title="Forgot / Incorrect"
-              aria-label="Forgot or Incorrect"
-              onClick={(e) => handleRatingClick('again', e)}
-            >
-              <span className="srs-btn-icon">✕</span>
-            </button>
-            <button
-              id="btn-audio"
-              className="srs-btn srs-btn-audio"
-              title="Pronounce word"
-              aria-label="Pronounce word"
-              onClick={handleAudioClick}
-            >
-              <span className="srs-btn-icon">🔊</span>
-            </button>
-            <button
-              id="btn-srs-correct"
-              className="srs-btn srs-btn-good srs-btn-correct"
-              data-rating="good"
-              title="Remembered / Correct"
-              aria-label="Remembered or Correct"
-              onClick={(e) => handleRatingClick('good', e)}
-            >
-              <span className="srs-btn-icon">✓</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Clean Empty State */}
-        <div
-          id="empty-state"
-          className="empty-state"
-          style={{ display: !currentCard ? 'flex' : 'none' }}
-        >
-          <div id="empty-icon" className="empty-icon">
-            ✨
-          </div>
-          <h3 id="empty-title" className="empty-title">
-            No flashcards yet
-          </h3>
-          <p id="empty-desc" className="empty-desc">
-            Type a word in the bar below to start learning!
-          </p>
-        </div>
+        {activePage === 'flashcards' ? (
+          <FlashcardsView
+            currentCard={currentCard}
+            isFlipped={isFlipped}
+            onFlipCard={handleFlipCard}
+            onRatingClick={handleRatingClick}
+            onAudioClick={handleAudioClick}
+          />
+        ) : (
+          <WordlistView
+            words={allWords}
+            isLoading={isWordsLoading}
+            onDeleteWord={handleDeleteWord}
+            onRefresh={loadWordlist}
+          />
+        )}
       </main>
 
       {/* Floating Bottom Word Input Dock */}
-      <footer className="bottom-dock">
-        <div className="bottom-dock-container">
-          <form
-            id="quick-word-form"
-            className="quick-word-form"
-            autoComplete="off"
-            onSubmit={handleQuickWordSubmit}
-          >
-            <div className="input-wrapper">
-              <input
-                type="text"
-                id="quick-word-input"
-                className="quick-word-input"
-                placeholder="Type a word or phrase..."
-                autoComplete="off"
-                aria-label="Type a word or phrase to add"
-                value={quickInput}
-                onChange={(e) => setQuickInput(e.target.value)}
-              />
-              <button
-                type="submit"
-                id="btn-quick-send"
-                className="btn-quick-send"
-                title="Add Word"
-                aria-label="Add Word"
-                disabled={isSending}
-              >
-                <svg
-                  className="send-icon"
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-              </button>
-            </div>
-          </form>
-        </div>
-      </footer>
+      <BottomDock
+        quickInput={quickInput}
+        isSending={isSending}
+        onInputChange={setQuickInput}
+        onSubmit={handleQuickWordSubmit}
+      />
 
       {/* Auth Modal */}
-      <div
-        id="auth-modal"
-        className={'modal-backdrop' + (isModalOpen ? ' is-open open active show' : '')}
-        onClick={() => setIsModalOpen(false)}
-      >
-        <div
-          className="modal-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="modal-title"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="modal-header">
-            <h3 id="modal-title" className="modal-title">
-              Account
-            </h3>
-            <button
-              id="modal-close-btn"
-              className="modal-close"
-              aria-label="Close modal"
-              onClick={() => setIsModalOpen(false)}
-            >
-              &times;
-            </button>
-          </div>
-          <div className="modal-tabs">
-            <button
-              id="tab-login"
-              className={'modal-tab' + (authTab === 'login' ? ' active' : '')}
-              onClick={() => {
-                setAuthTab('login');
-                setAuthError(null);
-              }}
-            >
-              Sign In
-            </button>
-            <button
-              id="tab-register"
-              className={'modal-tab' + (authTab === 'register' ? ' active' : '')}
-              onClick={() => {
-                setAuthTab('register');
-                setAuthError(null);
-              }}
-            >
-              Register
-            </button>
-          </div>
-          <div className="modal-body">
-            <div id="auth-alert" className={'modal-alert' + (authError ? ' show' : '')}>
-              {authError || ''}
-            </div>
-
-            {/* Login Form */}
-            <form
-              id="login-form"
-              className="word-form"
-              style={{ display: authTab === 'login' ? 'flex' : 'none' }}
-              onSubmit={handleLoginSubmit}
-            >
-              <div className="form-group">
-                <label className="form-label" htmlFor="login-identifier">
-                  Username or Email
-                </label>
-                <input
-                  type="text"
-                  id="login-identifier"
-                  className="input-field"
-                  placeholder="username or user@example.com"
-                  required
-                  autoComplete="username"
-                  value={loginIdentifier}
-                  onChange={(e) => setLoginIdentifier(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="login-password">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  id="login-password"
-                  className="input-field"
-                  placeholder="••••••••"
-                  required
-                  autoComplete="current-password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
-              </div>
-              <button type="submit" className="btn btn-primary btn-full">
-                Sign In
-              </button>
-            </form>
-
-            {/* Register Form */}
-            <form
-              id="register-form"
-              className="word-form"
-              style={{ display: authTab === 'register' ? 'flex' : 'none' }}
-              onSubmit={handleRegisterSubmit}
-            >
-              <div className="form-group">
-                <label className="form-label" htmlFor="reg-username">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  id="reg-username"
-                  className="input-field"
-                  placeholder="student123"
-                  minLength={3}
-                  required
-                  autoComplete="username"
-                  value={regUsername}
-                  onChange={(e) => setRegUsername(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="reg-email">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="reg-email"
-                  className="input-field"
-                  placeholder="student@example.com"
-                  required
-                  autoComplete="email"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="reg-password">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  id="reg-password"
-                  className="input-field"
-                  placeholder="At least 6 characters"
-                  minLength={6}
-                  required
-                  autoComplete="new-password"
-                  value={regPassword}
-                  onChange={(e) => setRegPassword(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="reg-target-lang">
-                  Target Learning Language
-                </label>
-                <select
-                  id="reg-target-lang"
-                  className="lang-select"
-                  value={regTargetLang}
-                  onChange={(e) => setRegTargetLang(e.target.value)}
-                >
-                  {languages.map((lang) => (
-                    <option key={lang.code} value={lang.code}>
-                      {lang.name + ' (' + lang.code.toUpperCase() + ')'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button type="submit" className="btn btn-primary btn-full">
-                Create Account
-              </button>
-            </form>
-
-            {/* Quick Demo Button */}
-            <div
-              style={{
-                borderTop: '1px solid var(--border-color)',
-                paddingTop: '0.85rem',
-                textAlign: 'center',
-              }}
-            >
-              <button
-                type="button"
-                id="quick-demo-btn"
-                className="btn btn-outline btn-full btn-sm"
-                onClick={handleQuickDemoLogin}
-              >
-                ⚡ Quick Demo Login
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <AuthModal
+        isOpen={isModalOpen}
+        authTab={authTab}
+        authError={authError}
+        languages={languages}
+        loginIdentifier={loginIdentifier}
+        loginPassword={loginPassword}
+        regUsername={regUsername}
+        regEmail={regEmail}
+        regPassword={regPassword}
+        regTargetLang={regTargetLang}
+        onClose={() => setIsModalOpen(false)}
+        onTabChange={(tab) => {
+          setAuthTab(tab);
+          setAuthError(null);
+        }}
+        onLoginIdentifierChange={setLoginIdentifier}
+        onLoginPasswordChange={setLoginPassword}
+        onRegUsernameChange={setRegUsername}
+        onRegEmailChange={setRegEmail}
+        onRegPasswordChange={setRegPassword}
+        onRegTargetLangChange={setRegTargetLang}
+        onLoginSubmit={handleLoginSubmit}
+        onRegisterSubmit={handleRegisterSubmit}
+        onQuickDemoLogin={handleQuickDemoLogin}
+      />
     </>
   );
 }
