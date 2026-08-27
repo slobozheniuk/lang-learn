@@ -503,7 +503,12 @@
     }
 
     try {
-      triggerHaptic('impact');
+      if (rating === 'again') {
+        triggerHaptic('error');
+      } else {
+        triggerHaptic('success');
+      }
+
       await api('/api/v1/review/submit', {
         method: 'POST',
         body: JSON.stringify({
@@ -512,7 +517,8 @@
         }),
       });
 
-      showToast(`Rated "${rating.toUpperCase()}"`, 'normal');
+      const label = rating === 'again' ? '✕ Forgot' : '✓ Remembered';
+      showToast(`${label} ("${card.text}")`, rating === 'again' ? 'error' : 'success');
 
       // In 'due' mode, remove this card from queue or reload
       if (state.deckMode === 'due') {
@@ -567,11 +573,11 @@
   el.btnPrevCard.addEventListener('click', () => prevCard());
   el.btnDeleteCard.addEventListener('click', () => deleteCurrentCard());
 
-  // SRS Rating Buttons
+  // SRS Rating Buttons (✕ / Forgot -> again, ✓ / Remembered -> good)
   document.querySelectorAll('.srs-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const rating = btn.getAttribute('data-rating');
+      const rating = btn.getAttribute('data-rating') || 'again';
       submitRating(rating);
     });
   });
@@ -698,21 +704,23 @@
       return;
     }
 
-    if (e.code === 'Space' || e.code === 'Enter') {
+    if (e.code === 'Space') {
       e.preventDefault();
       toggleFlip();
-    } else if (e.key === '1') {
+    } else if (e.key === '1' || e.key === 'ArrowLeft' || e.key === 'x' || e.key === 'X') {
+      e.preventDefault();
       submitRating('again');
-    } else if (e.key === '2') {
-      submitRating('hard');
-    } else if (e.key === '3') {
+    } else if (
+      e.key === '2' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'v' ||
+      e.key === 'V' ||
+      e.key === 'y' ||
+      e.key === 'Y' ||
+      e.key === 'Enter'
+    ) {
+      e.preventDefault();
       submitRating('good');
-    } else if (e.key === '4') {
-      submitRating('easy');
-    } else if (e.key === 'ArrowLeft') {
-      prevCard();
-    } else if (e.key === 'ArrowRight') {
-      nextCard();
     }
   });
 

@@ -79,23 +79,16 @@
 
       <!-- SRS Rating Buttons (Shown for active card) -->
       <div id="srs-ratings-wrapper" class="srs-ratings-wrapper">
-        <span class="srs-ratings-label">SRS Review Rating:</span>
         <div class="srs-buttons-grid">
-          <button class="srs-btn srs-btn-again" data-rating="again" title="Forgot word or got it wrong">
-            <span>Again</span>
+          <button id="btn-srs-wrong" class="srs-btn srs-btn-again srs-btn-wrong" data-rating="again" title="Forgot / Incorrect [1 / Left / X]" aria-label="Forgot or Incorrect">
+            <span class="srs-btn-icon">✕</span>
+            <span class="srs-btn-label">Forgot</span>
             <span class="srs-btn-key">[1]</span>
           </button>
-          <button class="srs-btn srs-btn-hard" data-rating="hard" title="Recalled with effort">
-            <span>Hard</span>
+          <button id="btn-srs-correct" class="srs-btn srs-btn-good srs-btn-correct" data-rating="good" title="Remembered / Correct [2 / Right / Enter]" aria-label="Remembered or Correct">
+            <span class="srs-btn-icon">✓</span>
+            <span class="srs-btn-label">Remembered</span>
             <span class="srs-btn-key">[2]</span>
-          </button>
-          <button class="srs-btn srs-btn-good" data-rating="good" title="Recalled correctly">
-            <span>Good</span>
-            <span class="srs-btn-key">[3]</span>
-          </button>
-          <button class="srs-btn srs-btn-easy" data-rating="easy" title="Instant, effortless recall">
-            <span>Easy</span>
-            <span class="srs-btn-key">[4]</span>
           </button>
         </div>
       </div>
