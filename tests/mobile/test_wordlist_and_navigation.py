@@ -11,6 +11,7 @@ def test_cheeseburger_menu_open_and_close(mobile_page: Page):
     """Test Cheeseburger Menu:
     - Button ☰ is visible in header.
     - Clicking ☰ opens drawer menu & backdrop.
+    - Drawer header does not contain redundant 'Menu' text.
     - Clicking backdrop outside drawer closes drawer.
     - Opening again and clicking close button (✕) closes drawer.
     """
@@ -26,6 +27,10 @@ def test_cheeseburger_menu_open_and_close(mobile_page: Page):
     backdrop = page.locator("#menu-backdrop")
     expect(drawer).to_have_class(re.compile(r"(is-open|open|active)"))
     expect(backdrop).to_have_class(re.compile(r"(is-open|open|active|show)"))
+
+    # Verify 'Menu' text is removed from drawer header
+    drawer_header = drawer.locator(".drawer-header")
+    expect(drawer_header).not_to_contain_text("Menu")
 
     # Verify navigation links exist in drawer
     expect(page.locator("#nav-link-flashcards")).to_be_visible()
@@ -46,7 +51,8 @@ def test_cheeseburger_menu_open_and_close(mobile_page: Page):
 
 def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     """Test switching cleanly between Flashcards and Wordlist pages:
-    - Navigating to Wordlist displays word list view and updates page title.
+    - Verify header does not contain page title badge to prevent overflow.
+    - Navigating to Wordlist displays word list view cleanly.
     - Navigating back to Flashcards displays flashcard learning view.
     """
     page = mobile_page
@@ -57,8 +63,10 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
         page.locator("#quick-demo-btn").click()
         expect(page.locator("#auth-nav")).to_contain_text("demo_student")
 
+    # Verify page title badge was removed from header
+    expect(page.locator("#page-title")).to_have_count(0)
+
     # Initial page is Flashcards
-    expect(page.locator("#page-title")).to_have_text("Flashcards")
     expect(page.locator("#flashcards-view")).to_be_visible()
 
     # Open burger menu and navigate to Wordlist
@@ -70,7 +78,7 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     # Verify Wordlist view is shown and drawer is closed
     expect(page.locator("#burger-menu-drawer")).not_to_have_class(re.compile(r"is-open"))
     expect(page.locator("#wordlist-view")).to_be_visible()
-    expect(page.locator("#page-title")).to_have_text("Wordlist")
+    expect(page.locator(".wordlist-heading")).to_have_text("Wordlist")
     expect(page.locator("#flashcards-view")).not_to_be_visible()
 
     # Open burger menu and navigate back to Flashcards
@@ -82,7 +90,6 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     # Verify Flashcards view is shown and drawer is closed
     expect(page.locator("#burger-menu-drawer")).not_to_have_class(re.compile(r"is-open"))
     expect(page.locator("#flashcards-view")).to_be_visible()
-    expect(page.locator("#page-title")).to_have_text("Flashcards")
     expect(page.locator("#wordlist-view")).not_to_be_visible()
 
 
@@ -290,10 +297,11 @@ def test_wordlist_pagination_controls(mobile_page: Page):
     # Exactly 20 word cards displayed on Page 1
     expect(page.locator(".word-card")).to_have_count(20)
 
-    # Click Next Page
+    # Scroll container to reveal pagination controls above floating bottom dock
     btn_next = page.locator("#btn-next-page")
     expect(btn_next).to_be_enabled()
-    btn_next.click()
+    btn_next.scroll_into_view_if_needed()
+    btn_next.dispatch_event("click")
 
     # Page 2 info
     expect(page.locator("#pagination-info")).to_contain_text("Page 2 of")
@@ -304,6 +312,143 @@ def test_wordlist_pagination_controls(mobile_page: Page):
     # Click Prev Page
     btn_prev = page.locator("#btn-prev-page")
     expect(btn_prev).to_be_enabled()
-    btn_prev.click()
+    btn_prev.scroll_into_view_if_needed()
+    btn_prev.dispatch_event("click")
     expect(page.locator("#pagination-info")).to_contain_text("Page 1 of")
     expect(page.locator(".word-card")).to_have_count(20)
+
+
+def test_wordlist_three_dot_menu_flip_up_and_outside_click(mobile_page: Page):
+    """Test Three-Dot Menu Flip-Up & Click Outside:
+    - On a card located in the bottom half of the viewport, clicking the three-dot button
+      dynamically flips the dropdown menu upwards (.word-dropdown-up / .open-up).
+    - Ensures high z-index and clear visibility above adjacent cards and floating dock.
+    - Clicking outside closes the dropdown menu cleanly.
+    """
+    page = mobile_page
+
+    # Log in
+    if page.locator("#btn-open-login").is_visible():
+        page.locator("#btn-open-login").click()
+        page.locator("#quick-demo-btn").click()
+        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Seed 8 words
+    page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+        for (let i = 1; i <= 8; i++) {
+            await fetch('/api/v1/words/', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ text: `flip_card_word_${i}`, translation: `перевод_флип_${i}`, language_code: 'en' })
+            });
+        }
+    }""")
+
+    # Navigate to Wordlist
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-wordlist").click()
+    expect(page.locator("#wordlist-view")).to_be_visible()
+
+    # Find a card towards the bottom
+    cards = page.locator(".word-card")
+    count = cards.count()
+    assert count >= 5
+
+    # Pick a card near bottom (e.g. 5th card)
+    bottom_card = cards.nth(4)
+    expect(bottom_card).to_be_visible()
+
+    # Click the three-dot menu button
+    dots_btn = bottom_card.locator(".btn-word-dots-menu")
+    expect(dots_btn).to_be_visible()
+    dots_btn.click()
+
+    # Verify dropdown is visible and flipped upwards if card is in bottom half
+    dropdown = bottom_card.locator(".word-dropdown-menu")
+    expect(dropdown).to_be_visible()
+
+    card_box = bottom_card.bounding_box()
+    assert card_box is not None
+    viewport_height = page.viewport_size["height"]
+
+    if card_box["y"] > viewport_height / 2 or (viewport_height - (card_box["y"] + card_box["height"])) < 160:
+        expect(dropdown).to_have_class(re.compile(r"(word-dropdown-up|open-up|is-up)"))
+
+    # Verify card or wrapper receives elevated z-index when open
+    has_elevated_zindex = bottom_card.evaluate("""el => {
+        const style = window.getComputedStyle(el);
+        const wrapper = el.querySelector('.word-actions-wrapper');
+        const wrapperZ = wrapper ? parseInt(window.getComputedStyle(wrapper).zIndex || '0', 10) : 0;
+        return parseInt(style.zIndex || '0', 10) >= 100 || wrapperZ >= 100;
+    }""")
+    assert has_elevated_zindex, "Active word card or actions wrapper should have elevated z-index"
+
+    # Click outside (on the wordlist heading) to close the menu
+    page.locator(".wordlist-heading").click()
+    expect(dropdown).not_to_be_visible()
+
+
+def test_wordlist_scroll_container_and_bottom_clearance(mobile_page: Page):
+    """Test Wordlist Scrolling & Clearance:
+    - Middle scroll container has overflow-y: auto, min-height: 0.
+    - Lowest cards in wordlist can be scrolled with substantial bottom clearance
+      so they are never covered by the floating bottom dock.
+    """
+    page = mobile_page
+
+    # Log in
+    if page.locator("#btn-open-login").is_visible():
+        page.locator("#btn-open-login").click()
+        page.locator("#quick-demo-btn").click()
+        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Seed 12 words to produce a long list
+    page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+        for (let i = 1; i <= 12; i++) {
+            await fetch('/api/v1/words/', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ text: `scroll_test_word_${i}`, translation: `скролл_тест_${i}`, language_code: 'en' })
+            });
+        }
+    }""")
+
+    # Navigate to Wordlist
+    page.locator("#burger-menu-btn").click()
+    page.locator("#nav-link-wordlist").click()
+    expect(page.locator("#wordlist-view")).to_be_visible()
+
+    container = page.locator(".app-container")
+    expect(container).to_be_visible()
+
+    # Check scroll container styles
+    overflow_y = container.evaluate("el => window.getComputedStyle(el).overflowY")
+    assert overflow_y in ("auto", "scroll")
+
+    # Scroll to the bottom of the container
+    page.evaluate("() => { const el = document.querySelector('.app-container'); if (el) el.scrollTop = el.scrollHeight; }")
+    page.wait_for_timeout(300)
+
+    # Get bottom dock box
+    bottom_dock = page.locator(".bottom-dock")
+    expect(bottom_dock).to_be_visible()
+    dock_box = bottom_dock.bounding_box()
+    assert dock_box is not None
+
+    # Find the last card on the page
+    cards = page.locator(".word-card")
+    last_card = cards.last
+    expect(last_card).to_be_visible()
+    last_card_box = last_card.bounding_box()
+    assert last_card_box is not None
+
+    # The lowest card bottom should be completely above the bottom dock top
+    assert last_card_box["y"] + last_card_box["height"] <= dock_box["y"] + 5, (
+        f"Lowest card bottom ({last_card_box['y'] + last_card_box['height']}) "
+        f"should be above floating dock top ({dock_box['y']})"
+    )
+

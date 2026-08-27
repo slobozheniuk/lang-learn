@@ -515,9 +515,8 @@ export function App() {
 
   return (
     <>
-      {/* App Header with Cheeseburger Button & Active Page */}
+      {/* App Header with Cheeseburger Button */}
       <Header
-        activePage={activePage}
         user={user}
         token={token}
         onToggleMenu={() => setIsMenuOpen((prev) => !prev)}

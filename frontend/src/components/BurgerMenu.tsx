@@ -46,7 +46,6 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
         <div className="drawer-header">
           <div className="drawer-brand">
             <span className="drawer-brand-icon">⚡</span>
-            <span className="drawer-brand-title">Menu</span>
           </div>
           <button
             id="drawer-close-btn"

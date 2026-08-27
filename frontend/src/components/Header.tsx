@@ -2,7 +2,6 @@ import React from 'react';
 import { PageView, User } from '../types';
 
 interface HeaderProps {
-  activePage: PageView;
   user: User | null;
   token: string | null;
   onToggleMenu: () => void;
@@ -12,7 +11,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  activePage,
   user,
   token,
   onToggleMenu,
@@ -44,9 +42,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="brand-icon">⚡</span>
             <span className="brand-name">LangLearn</span>
           </a>
-          <span id="page-title" className="page-title-badge">
-            {activePage === 'flashcards' ? 'Flashcards' : 'Wordlist'}
-          </span>
         </div>
 
         <div id="auth-nav" className="auth-nav">

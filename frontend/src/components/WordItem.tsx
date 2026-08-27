@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Word } from '../types';
 import { getRecallRate, getRecallStatus } from '../utils/srs';
 
@@ -18,9 +18,22 @@ export const WordItem: React.FC<WordItemProps> = ({
   onCloseMenu,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [openUpwards, setOpenUpwards] = useState<boolean>(false);
   const recallRate = getRecallRate(word);
   const recallStatus = getRecallStatus(recallRate);
   const isPerfect = recallStatus === 'perfect';
+
+  // Check card position to dynamically determine if menu should open upwards
+  useEffect(() => {
+    if (isMenuOpen && menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      // If button is in the bottom half of the viewport or space below is less than 160px
+      const spaceBelow = viewportHeight - rect.bottom;
+      const shouldOpenUp = spaceBelow < 160 || rect.top > viewportHeight / 2;
+      setOpenUpwards(shouldOpenUp);
+    }
+  }, [isMenuOpen]);
 
   // Handle clicking outside of open menu
   useEffect(() => {
@@ -30,11 +43,11 @@ export const WordItem: React.FC<WordItemProps> = ({
         onCloseMenu();
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('touchstart', handleClickOutside, true);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('touchstart', handleClickOutside, true);
     };
   }, [isMenuOpen, onCloseMenu]);
 
@@ -42,7 +55,8 @@ export const WordItem: React.FC<WordItemProps> = ({
     <div
       id={`word-card-${word.id}`}
       data-word-id={word.id}
-      className={`word-card ${isPerfect ? 'word-card-perfect' : ''}`}
+      className={`word-card ${isPerfect ? 'word-card-perfect' : ''} ${isMenuOpen ? 'menu-active' : ''}`}
+      style={isMenuOpen ? { zIndex: 100 } : undefined}
     >
       {/* Left section: Color-coded recall rate indicator badge */}
       <div
@@ -70,7 +84,7 @@ export const WordItem: React.FC<WordItemProps> = ({
       </div>
 
       {/* Right section: Three-dot settings/actions menu */}
-      <div className="word-actions-wrapper" ref={menuRef}>
+      <div className={`word-actions-wrapper ${isMenuOpen ? 'is-open' : ''}`} ref={menuRef}>
         <button
           id={`btn-word-menu-${word.id}`}
           className="btn-word-dots-menu"
@@ -85,7 +99,10 @@ export const WordItem: React.FC<WordItemProps> = ({
         </button>
 
         {isMenuOpen && (
-          <div className="word-dropdown-menu" role="menu">
+          <div
+            className={`word-dropdown-menu ${openUpwards ? 'word-dropdown-up open-up is-up' : 'word-dropdown-down'}`}
+            role="menu"
+          >
             <button
               id={`btn-delete-word-${word.id}`}
               className="word-dropdown-item dropdown-item-delete"

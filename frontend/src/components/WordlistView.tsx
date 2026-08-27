@@ -63,16 +63,18 @@ export const WordlistView: React.FC<WordlistViewProps> = ({
     await onDeleteWord(wordId);
   };
 
-  const handlePrevPage = () => {
+  const handlePrevPage = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setCurrentPage((prev) => Math.max(1, prev - 1));
   };
 
-  const handleNextPage = () => {
+  const handleNextPage = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   };
 
   return (
-    <div id="wordlist-view" className="wordlist-view">
+    <div id="wordlist-view" className="wordlist-view wordlist-container">
       {/* Header bar with count and search */}
       <div className="wordlist-header">
         <div className="wordlist-title-row">
@@ -109,7 +111,7 @@ export const WordlistView: React.FC<WordlistViewProps> = ({
 
       {/* Word Cards List */}
       {paginatedWords.length > 0 ? (
-        <div id="wordlist-grid" className="wordlist-grid">
+        <div id="wordlist-grid" className="wordlist-grid word-list">
           {paginatedWords.map((word) => (
             <WordItem
               key={word.id}
