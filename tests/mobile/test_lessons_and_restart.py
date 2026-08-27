@@ -18,7 +18,6 @@ def test_lessons_is_default_page_on_load(mobile_page: Page):
     # Verify Lessons view is visible on initial load
     lessons_view = page.locator("#lessons-view")
     expect(lessons_view).to_be_visible()
-    expect(page.locator(".lessons-heading")).to_have_text("Lessons")
 
     # Verify other views are not visible
     expect(page.locator("#flashcards-view")).not_to_be_visible()
@@ -68,7 +67,7 @@ def test_lesson_cards_chunking_and_progress(mobile_page: Page):
     }""")
 
     # Refresh lessons
-    page.locator("#btn-refresh-lessons").click()
+    page.evaluate("() => window.loadWordlist()")
     page.wait_for_timeout(300)
 
     # Verify Lesson 1 card shows 3 / 5 words
@@ -91,7 +90,7 @@ def test_lesson_cards_chunking_and_progress(mobile_page: Page):
         }
     }""")
 
-    page.locator("#btn-refresh-lessons").click()
+    page.evaluate("() => window.loadWordlist()")
     page.wait_for_timeout(300)
 
     # Verify Lesson 1 card is now completed (5 words)
@@ -130,7 +129,7 @@ def test_lesson_detail_opens_hides_dock_and_closes(mobile_page: Page):
         }
     }""")
 
-    page.locator("#btn-refresh-lessons").click()
+    page.evaluate("() => window.loadWordlist()")
     page.wait_for_timeout(300)
 
     # Initial state: Bottom dock is visible
@@ -195,7 +194,7 @@ def test_lesson_detail_interactive_study_and_completion(mobile_page: Page):
         }
     }""")
 
-    page.locator("#btn-refresh-lessons").click()
+    page.evaluate("() => window.loadWordlist()")
     page.wait_for_timeout(300)
 
     # Open Lesson 1

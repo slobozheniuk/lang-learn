@@ -782,73 +782,6 @@ button {
   padding-bottom: 1rem;
 }
 
-.wordlist-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  background: var(--bg-card);
-  padding: 0.85rem 1rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-}
-
-.wordlist-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.wordlist-heading {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: -0.01em;
-}
-
-.wordlist-badge-count {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-sub);
-  background: var(--bg-app);
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-color);
-}
-
-.btn-refresh-icon {
-  font-size: 1.2rem;
-  line-height: 1;
-  color: var(--text-sub);
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  transition: all 0.15s ease;
-}
-
-.btn-refresh-icon:hover {
-  color: var(--color-primary);
-  transform: rotate(45deg);
-}
-
-.wordlist-search-wrapper {
-  width: 100%;
-}
-
-.wordlist-search-input {
-  width: 100%;
-  padding: 0.55rem 0.85rem;
-  background: var(--bg-app);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-main);
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.wordlist-search-input:focus {
-  border-color: var(--color-primary);
-}
 
 .wordlist-grid,
 .word-list {
@@ -1443,51 +1376,6 @@ button {
   padding-bottom: 1rem;
 }
 
-.lessons-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  background: var(--bg-card);
-  padding: 0.85rem 1rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-}
-
-.lessons-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.lessons-title-left {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.lessons-heading {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: -0.01em;
-}
-
-.lessons-badge-count {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-sub);
-  background: var(--bg-app);
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-color);
-}
-
-.lessons-subtitle {
-  font-size: 0.82rem;
-  color: var(--text-sub);
-  line-height: 1.3;
-}
 
 .lessons-grid {
   display: flex;

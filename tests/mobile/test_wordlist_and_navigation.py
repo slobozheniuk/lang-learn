@@ -81,7 +81,6 @@ def test_navigation_between_flashcards_and_wordlist(mobile_page: Page):
     # Verify Wordlist view is shown and drawer is closed
     expect(page.locator("#burger-menu-drawer")).not_to_have_class(re.compile(r"is-open"))
     expect(page.locator("#wordlist-view")).to_be_visible()
-    expect(page.locator(".wordlist-heading")).to_have_text("Wordlist")
     expect(page.locator("#lessons-view")).not_to_be_visible()
 
     # Open burger menu and navigate to Flashcards
@@ -125,10 +124,16 @@ def test_wordlist_recall_rate_badges_and_color_coding(mobile_page: Page):
         page.locator("#quick-demo-btn").click()
         expect(page.locator("#auth-nav")).to_contain_text("demo_student")
 
-    # Seed 4 words with specific recall rates
+    # Seed 4 words with specific recall rates (clearing existing words first)
     page.evaluate("""async () => {
         const token = localStorage.getItem('ll_token');
         const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+
+        // Clean any existing words to ensure the 4 test words fit on Page 1
+        const existing = await fetch('/api/v1/words/?limit=100', { headers }).then(r => r.json());
+        for (const w of (existing || [])) {
+            await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers });
+        }
 
         // 1. Word with 0% recall (0 reviews) -> Red
         const w1 = await fetch('/api/v1/words/', {
@@ -173,12 +178,6 @@ def test_wordlist_recall_rate_badges_and_color_coding(mobile_page: Page):
     page.locator("#burger-menu-btn").click()
     page.locator("#nav-link-wordlist").click()
     expect(page.locator("#wordlist-view")).to_be_visible()
-
-    # Filter search to display the 4 seeded test words on single page
-    search_input = page.locator("#wordlist-search-input")
-    if search_input.is_visible():
-        search_input.fill("word_")
-        page.wait_for_timeout(200)
 
     # Find the cards
     card_red = page.locator(".word-card:has-text('word_red_zero')")
@@ -405,8 +404,8 @@ def test_wordlist_three_dot_menu_flip_up_and_outside_click(mobile_page: Page):
     }""")
     assert has_elevated_zindex, "Active word card or actions wrapper should have elevated z-index"
 
-    # Click outside (on the wordlist heading) to close the menu
-    page.locator(".wordlist-heading").click()
+    # Click outside (on the header) to close the menu
+    page.locator(".app-header").click()
     expect(dropdown).not_to_be_visible()
 
 

@@ -3,9 +3,9 @@ import { Lesson, Word } from '../types';
 
 interface LessonsViewProps {
   words: Word[];
-  isLoading: boolean;
+  isLoading?: boolean;
   onSelectLesson: (lesson: Lesson) => void;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 }
 
 export function chunkWordsIntoLessons(words: Word[], wordsPerChunk = 5): Lesson[] {
@@ -33,38 +33,12 @@ export function chunkWordsIntoLessons(words: Word[], wordsPerChunk = 5): Lesson[
 
 export const LessonsView: React.FC<LessonsViewProps> = ({
   words,
-  isLoading,
   onSelectLesson,
-  onRefresh,
 }) => {
   const lessons = useMemo(() => chunkWordsIntoLessons(words, 5), [words]);
 
   return (
     <div id="lessons-view" className="lessons-view lessons-container">
-      {/* Header bar with count and refresh */}
-      <div className="lessons-header">
-        <div className="lessons-title-row">
-          <div className="lessons-title-left">
-            <h2 className="lessons-heading">Lessons</h2>
-            <span className="lessons-badge-count">
-              {lessons.length} {lessons.length === 1 ? 'lesson' : 'lessons'}
-            </span>
-          </div>
-          <button
-            id="btn-refresh-lessons"
-            className="btn-refresh-icon"
-            aria-label="Refresh lessons"
-            title="Refresh lessons"
-            onClick={onRefresh}
-            disabled={isLoading}
-          >
-            ↻
-          </button>
-        </div>
-        <p className="lessons-subtitle">
-          Each lesson contains 5 words to help you study in bite-sized sessions.
-        </p>
-      </div>
 
       {/* Lesson Cards Grid */}
       {lessons.length > 0 ? (
