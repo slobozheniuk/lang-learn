@@ -1,7 +1,9 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.api import api_router
 from app.config import settings
@@ -41,11 +43,17 @@ def create_app() -> FastAPI:
     def health_check() -> dict[str, str]:
         return {"status": "ok", "app": settings.PROJECT_NAME}
 
-    @app.get("/", tags=["root"])
-    def root() -> dict[str, str]:
-        return {"message": "Language Learning App Backend API", "docs": "/docs"}
+    # Mount frontend static files if built
+    frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    if frontend_dist.exists() and (frontend_dist / "index.html").exists():
+        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    else:
+        @app.get("/", tags=["root"])
+        def root() -> dict[str, str]:
+            return {"message": "Language Learning App Backend API", "docs": "/docs"}
 
     return app
 
 
 app = create_app()
+
