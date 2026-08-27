@@ -1,15 +1,222 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>LinguaFlash — Smart Language Learning</title>
-    <!-- Telegram Web App JS SDK (if embedded in Telegram) -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>LangLearn — Smart Flashcard Learning</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>" />
+  <!-- Telegram Web App JS SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-content">
+      <a href="/" class="brand">
+        <span class="brand-icon">⚡</span>
+        <span>LangLearn</span>
+      </a>
+      <div id="auth-nav" class="auth-nav">
+        <!-- Injected via JavaScript -->
+        <button id="btn-open-login" class="btn btn-primary btn-sm">Sign In / Register</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-container">
+
+    <!-- Add Word Section -->
+    <section class="section-card" aria-labelledby="add-word-title">
+      <h2 id="add-word-title" class="section-title">
+        <span>➕ Add New Word</span>
+      </h2>
+      <form id="word-form" class="word-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="word-text" class="form-label">Target Word / Phrase *</label>
+            <input type="text" id="word-text" class="input-field" placeholder="e.g. gezellig" required autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="word-translation" class="form-label">Translation *</label>
+            <input type="text" id="word-translation" class="input-field" placeholder="e.g. cozy, pleasant" required autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="word-context" class="form-label">Context / Example Sentence (optional)</label>
+          <input type="text" id="word-context" class="input-field" placeholder="e.g. Het was een heel gezellige avond." autocomplete="off" />
+        </div>
+
+        <div class="form-extra">
+          <div class="lang-select-wrapper">
+            <label for="word-lang">Language:</label>
+            <select id="word-lang" class="lang-select">
+              <option value="en">English (EN)</option>
+              <option value="nl">Dutch (NL)</option>
+              <option value="ru">Russian (RU)</option>
+            </select>
+          </div>
+          <button type="submit" id="btn-add-word" class="btn btn-primary">➕ Add Word</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Flashcards / Review Section -->
+    <section class="section-card" aria-labelledby="deck-section-title">
+      <div class="deck-header">
+        <div class="deck-tabs" role="tablist">
+          <button id="tab-due" class="deck-tab active" role="tab">Due for Review</button>
+          <button id="tab-all" class="deck-tab" role="tab">All Words</button>
+        </div>
+        <span id="deck-counter" class="deck-counter">0 cards</span>
+      </div>
+
+      <!-- 3D Flashcard Presentation -->
+      <div id="flashcard-scene" class="flashcard-scene">
+        <div id="flashcard" class="flashcard" role="button" tabindex="0" aria-label="Flashcard. Click to flip">
+          <!-- Front Face -->
+          <div class="card-face card-face-front">
+            <div class="card-top-bar">
+              <span id="card-tag" class="card-tag">EN</span>
+              <button id="card-audio-btn" class="card-audio-btn" title="Pronounce word" aria-label="Pronounce word">🔊</button>
+            </div>
+            <div class="card-main-content">
+              <div id="card-word" class="card-word">word</div>
+              <div id="card-phonetic" class="card-phonetic"></div>
+            </div>
+            <div class="card-bottom-hint">
+              <span>👆 Tap card to flip and reveal translation</span>
+            </div>
+          </div>
+
+          <!-- Back Face -->
+          <div class="card-face card-face-back">
+            <div class="card-top-bar">
+              <span id="card-stats" class="card-stats-pill">New Card</span>
+            </div>
+            <div class="card-main-content">
+              <div id="card-translation" class="card-translation">translation</div>
+              <div id="card-context" class="card-context" style="display: none;"></div>
+            </div>
+            <div class="card-bottom-hint">
+              <span>Rate your recall below:</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SRS Rating Buttons (Shown for active card) -->
+      <div id="srs-ratings-wrapper" class="srs-ratings-wrapper">
+        <span class="srs-ratings-label">SRS Review Rating:</span>
+        <div class="srs-buttons-grid">
+          <button class="srs-btn srs-btn-again" data-rating="again" title="Forgot word or got it wrong">
+            <span>Again</span>
+            <span class="srs-btn-key">[1]</span>
+          </button>
+          <button class="srs-btn srs-btn-hard" data-rating="hard" title="Recalled with effort">
+            <span>Hard</span>
+            <span class="srs-btn-key">[2]</span>
+          </button>
+          <button class="srs-btn srs-btn-good" data-rating="good" title="Recalled correctly">
+            <span>Good</span>
+            <span class="srs-btn-key">[3]</span>
+          </button>
+          <button class="srs-btn srs-btn-easy" data-rating="easy" title="Instant, effortless recall">
+            <span>Easy</span>
+            <span class="srs-btn-key">[4]</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Card Navigation Toolbar -->
+      <div class="card-nav-bar">
+        <button id="btn-prev-card" class="btn btn-outline btn-sm">◀ Prev</button>
+        <button id="btn-flip-card" class="btn btn-outline btn-sm">↻ Flip (Space)</button>
+        <button id="btn-next-card" class="btn btn-outline btn-sm">Next ▶</button>
+        <button id="btn-delete-card" class="btn btn-outline btn-sm" title="Delete word">🗑️</button>
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state" style="display: none;">
+        <div id="empty-icon" class="empty-icon">✨</div>
+        <h3 id="empty-title" class="empty-title">No flashcards yet</h3>
+        <p id="empty-desc" class="empty-desc">Add your first word using the form above to start learning!</p>
+        <button id="empty-action-btn" class="btn btn-primary btn-sm" style="display: none;">Review All Flashcards</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Auth Modal -->
+  <div id="auth-modal" class="modal-backdrop">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <h3 id="modal-title" class="modal-title">Account</h3>
+        <button id="modal-close-btn" class="modal-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-tabs">
+        <button id="tab-login" class="modal-tab active">Sign In</button>
+        <button id="tab-register" class="modal-tab">Register</button>
+      </div>
+      <div class="modal-body">
+        <div id="auth-alert" class="modal-alert"></div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="word-form">
+          <div class="form-group">
+            <label class="form-label" for="login-identifier">Username or Email</label>
+            <input type="text" id="login-identifier" class="input-field" placeholder="username or user@example.com" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-password">Password</label>
+            <input type="password" id="login-password" class="input-field" placeholder="••••••••" required autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="word-form" style="display: none;">
+          <div class="form-group">
+            <label class="form-label" for="reg-username">Username</label>
+            <input type="text" id="reg-username" class="input-field" placeholder="student123" minlength="3" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-email">Email</label>
+            <input type="email" id="reg-email" class="input-field" placeholder="student@example.com" required autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-password">Password</label>
+            <input type="password" id="reg-password" class="input-field" placeholder="At least 6 characters" minlength="6" required autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-target-lang">Target Learning Language</label>
+            <select id="reg-target-lang" class="lang-select">
+              <option value="en">English (EN)</option>
+              <option value="nl">Dutch (NL)</option>
+              <option value="ru">Russian (RU)</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+        </form>
+
+        <!-- Quick Demo Button for effortless testing -->
+        <div style="border-top: 1px solid var(--border-color); padding-top: 0.85rem; text-align: center;">
+          <button type="button" id="quick-demo-btn" class="btn btn-outline btn-full btn-sm">
+            ⚡ Quick Demo Login
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Application Script -->
+  <script src="/app.js"></script>
+</body>
 </html>
