@@ -93,11 +93,8 @@ def test_word_addition_and_flashcard_display(mobile_page: Page):
     expect(btn_send).to_be_enabled()
     btn_send.click()
 
-    # Verify toast confirmation appears for the added word
-    toast = page.locator(".toast", has_text=word_text)
-    expect(toast).to_be_visible()
-
-    # Verify the new word is displayed on the active flashcard
+    # Verify no floating toast bubbles appear and the new word is displayed on the active flashcard
+    expect(page.locator(".toast")).to_have_count(0)
     card_word = page.locator("#card-word")
     expect(card_word).to_be_visible()
     expect(card_word).to_have_text(word_text)
@@ -283,9 +280,8 @@ def test_srs_review_action_feedback_and_transition(mobile_page: Page):
     expect(btn_correct).to_be_visible()
     btn_correct.click()
 
-    # Verify toast feedback appears
-    toast_good = page.locator(".toast", has_text="✓ Remembered")
-    expect(toast_good).to_be_visible()
+    # Verify no floating toast bubbles appear
+    expect(page.locator(".toast")).to_have_count(0)
 
     # Wait a moment for deck state update
     page.wait_for_timeout(500)
@@ -297,9 +293,8 @@ def test_srs_review_action_feedback_and_transition(mobile_page: Page):
         expect(btn_wrong).to_be_visible()
         btn_wrong.click()
 
-        # Verify toast feedback for Forgot
-        toast_wrong = page.locator(".toast", has_text="✕ Forgot")
-        expect(toast_wrong).to_be_visible()
+        # Verify no floating toast bubbles appear
+        expect(page.locator(".toast")).to_have_count(0)
 
 
 def test_visual_screenshots_generated(mobile_page: Page):

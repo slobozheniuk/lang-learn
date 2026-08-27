@@ -87,9 +87,6 @@
     btnFlipCard: document.getElementById('btn-flip-card'),
     btnNextCard: document.getElementById('btn-next-card'),
     btnDeleteCard: document.getElementById('btn-delete-card'),
-
-    // Toast
-    toastContainer: document.getElementById('toast-container'),
   };
 
   // --- API Client ---
@@ -112,7 +109,6 @@
         // Token expired or invalid
         if (state.token) {
           clearAuth();
-          showToast('Session expired. Please log in again.', 'error');
         }
       }
 
@@ -137,23 +133,6 @@
       console.error(`API Error on ${path}:`, error);
       throw error;
     }
-  }
-
-  // --- Toast Notification ---
-  function showToast(message, type = 'normal') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type === 'success' ? 'toast-success' : type === 'error' ? 'toast-error' : ''}`;
-    toast.innerHTML = `<span>${message}</span>`;
-    el.toastContainer.appendChild(toast);
-
-    requestAnimationFrame(() => {
-      toast.classList.add('show');
-    });
-
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
   }
 
   // --- Authentication ---
@@ -201,7 +180,6 @@
       `;
       document.getElementById('btn-logout').addEventListener('click', () => {
         clearAuth();
-        showToast('Signed out successfully');
       });
     } else {
       el.authNav.innerHTML = `
@@ -312,7 +290,6 @@
         });
 
         triggerHaptic('success');
-        showToast(`✓ Added "${newWord.text}" to your deck!`, 'success');
 
         // Clear input box
         if (el.quickWordInput) {
@@ -323,7 +300,7 @@
         await loadDeck(state.deckMode, newWord.id);
       } catch (err) {
         triggerHaptic('error');
-        showToast(err.message || 'Failed to add word', 'error');
+        console.error('Failed to add word:', err);
       } finally {
         if (el.btnQuickSend) {
           el.btnQuickSend.disabled = false;
@@ -517,9 +494,6 @@
         }),
       });
 
-      const label = rating === 'again' ? '✕ Forgot' : '✓ Remembered';
-      showToast(`${label} ("${card.text}")`, rating === 'again' ? 'error' : 'success');
-
       // In 'due' mode, remove this card from queue or reload
       if (state.deckMode === 'due') {
         state.deck.splice(state.currentIndex, 1);
@@ -532,7 +506,7 @@
       }
     } catch (err) {
       triggerHaptic('error');
-      showToast(err.message || 'Failed to submit review rating', 'error');
+      console.error('Failed to submit review rating:', err);
     }
   }
 
@@ -550,14 +524,13 @@
     try {
       await api(`/api/v1/words/${card.id}`, { method: 'DELETE' });
       triggerHaptic('success');
-      showToast(`Deleted "${card.text}"`, 'normal');
       state.deck.splice(state.currentIndex, 1);
       if (state.currentIndex >= state.deck.length) {
         state.currentIndex = Math.max(0, state.deck.length - 1);
       }
       renderDeck();
     } catch (err) {
-      showToast(err.message || 'Failed to delete word', 'error');
+      console.error('Failed to delete word:', err);
     }
   }
 
@@ -612,7 +585,6 @@
       const user = await api('/api/v1/auth/me');
       setAuth(token, user);
       closeAuthModal();
-      showToast(`Welcome back, ${user.username}!`, 'success');
       triggerHaptic('success');
     } catch (err) {
       showAuthError(err.message || 'Invalid username or password');
@@ -648,7 +620,6 @@
       const user = res.user;
       setAuth(token, user);
       closeAuthModal();
-      showToast(`Account created! Welcome, ${user.username}!`, 'success');
       triggerHaptic('success');
     } catch (err) {
       showAuthError(err.message || 'Registration failed');
@@ -680,7 +651,6 @@
       const user = await api('/api/v1/auth/me');
       setAuth(token, user);
       closeAuthModal();
-      showToast(`Signed in as demo student!`, 'success');
     } catch (loginErr) {
       // If user doesn't exist, register
       try {
@@ -690,7 +660,6 @@
         });
         setAuth(regRes.token.access_token, regRes.user);
         closeAuthModal();
-        showToast(`Demo student created and signed in!`, 'success');
       } catch (regErr) {
         showAuthError(regErr.message || 'Quick demo login failed');
       }
