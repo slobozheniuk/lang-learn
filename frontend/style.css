@@ -845,13 +845,22 @@ button {
 
 .quick-word-input {
   flex: 1;
-  border: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   background: transparent;
   color: var(--text-main);
   font-size: 0.95rem;
-  outline: none;
   padding: 0.45rem 0.5rem 0.45rem 0;
   min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.quick-word-input:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .quick-word-input::placeholder {
@@ -864,6 +873,7 @@ button {
   justify-content: center;
   width: 38px;
   height: 38px;
+  padding: 0;
   border-radius: var(--radius-full);
   background-color: var(--color-primary);
   color: var(--color-primary-text);
@@ -891,7 +901,10 @@ button {
 
 .send-icon {
   display: block;
-  transform: translate(1px, -1px);
+  width: 18px;
+  height: 18px;
+  margin: auto;
+  transform: translate(-1px, 1px);
 }
 
 /* Toast Notifications */
