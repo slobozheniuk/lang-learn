@@ -8,7 +8,7 @@ SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def test_mobile_layout_and_fixed_elements(mobile_page: Page):
-    """Test (a): Mobile Layout & Fixed Elements.
+    """Test Layout & Fixed Elements:
     Header is fixed at top, floating input dock is fixed at bottom,
     middle container scrolls without viewport overscroll.
     """
@@ -57,10 +57,179 @@ def test_mobile_layout_and_fixed_elements(mobile_page: Page):
     assert screenshot_path.exists() and screenshot_path.stat().st_size > 0
 
 
+def test_auth_modal_open_tabs_and_close(mobile_page: Page):
+    """Behavior (a): Clicking sign in button opens modal,
+    supports tab switching and close button.
+    """
+    page = mobile_page
+
+    btn_login = page.locator("#btn-open-login")
+    expect(btn_login).to_be_visible()
+    btn_login.click()
+
+    auth_modal = page.locator("#auth-modal")
+    expect(auth_modal).to_have_class(re.compile(r"(is-open|open|active|show)"))
+
+    # Test tab switching to Register
+    tab_register = page.locator("#tab-register")
+    expect(tab_register).to_be_visible()
+    tab_register.click()
+    expect(page.locator("#register-form")).to_be_visible()
+    expect(page.locator("#login-form")).not_to_be_visible()
+
+    # Test tab switching back to Sign In
+    tab_login = page.locator("#tab-login")
+    expect(tab_login).to_be_visible()
+    tab_login.click()
+    expect(page.locator("#login-form")).to_be_visible()
+    expect(page.locator("#register-form")).not_to_be_visible()
+
+    # Test close button
+    close_btn = page.locator("#modal-close-btn")
+    expect(close_btn).to_be_visible()
+    close_btn.click()
+    expect(auth_modal).not_to_have_class(re.compile(r"is-open"))
+
+
+def test_card_flip_front_to_back_and_reverse(mobile_page: Page):
+    """Behavior (b): Clicking card flips it (verifying front -> back flip transition
+    and back -> front flip transition).
+    """
+    page = mobile_page
+
+    # Log in if needed
+    if page.locator("#btn-open-login").is_visible():
+        page.locator("#btn-open-login").click()
+        page.locator("#quick-demo-btn").click()
+        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Add a card if deck is empty
+    if page.locator("#empty-state").is_visible():
+        page.locator("#quick-word-input").fill("luminary - светило")
+        page.locator("#btn-quick-send").click()
+        expect(page.locator("#card-word")).to_have_text("luminary")
+
+    card = page.locator("#flashcard")
+    expect(card).to_be_visible()
+    expect(card).not_to_have_class(re.compile(r"(is-flipped|flipped)"))
+
+    # Tap flashcard to flip front -> back
+    card.click()
+    expect(card).to_have_class(re.compile(r"(is-flipped|flipped)"))
+
+    # Verify translation is visible on back face
+    translation = page.locator("#card-translation")
+    expect(translation).to_be_visible()
+    assert len(translation.inner_text().strip()) > 0
+
+    # Tap flashcard again to flip back -> front
+    card.click()
+    expect(card).not_to_have_class(re.compile(r"(is-flipped|flipped)"))
+    expect(page.locator("#card-word")).to_be_visible()
+
+
+def test_sound_button_triggers_speech_synthesis(mobile_page: Page):
+    """Behavior (c): Clicking sound button triggers Web Speech API
+    (mocked/spied SpeechSynthesis).
+    """
+    page = mobile_page
+
+    # Log in
+    if page.locator("#btn-open-login").is_visible():
+        page.locator("#btn-open-login").click()
+        page.locator("#quick-demo-btn").click()
+        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Add a known word
+    test_word = "sonder"
+    page.locator("#quick-word-input").fill(f"{test_word} - осознание")
+    page.locator("#btn-quick-send").click()
+    expect(page.locator("#card-word")).to_have_text(test_word)
+
+    # Set up spy on window.speechSynthesis
+    page.evaluate("""() => {
+        window.__spokenUtterances = [];
+        const origSpeak = window.speechSynthesis ? window.speechSynthesis.speak.bind(window.speechSynthesis) : null;
+        if (!window.speechSynthesis) {
+            window.speechSynthesis = {
+                speak: (u) => { window.__spokenUtterances.push({ text: u.text, lang: u.lang }); },
+                cancel: () => {},
+                resume: () => {},
+                paused: false
+            };
+        } else {
+            window.speechSynthesis.speak = (u) => {
+                window.__spokenUtterances.push({ text: u.text, lang: u.lang });
+                if (origSpeak) {
+                    try { origSpeak(u); } catch(e) {}
+                }
+            };
+        }
+    }""")
+
+    # Click sound button
+    btn_audio = page.locator("#btn-audio")
+    expect(btn_audio).to_be_visible()
+    btn_audio.click()
+
+    # Verify speech synthesis was called with current card's word text
+    spoken = page.evaluate("() => window.__spokenUtterances")
+    assert len(spoken) >= 1, f"Expected speechSynthesis.speak to be called, got {spoken}"
+    assert spoken[-1]["text"] == test_word, f"Expected spoken text '{test_word}', got '{spoken[-1]['text']}'"
+    assert "en" in spoken[-1]["lang"].lower(), f"Expected English lang code, got '{spoken[-1]['lang']}'"
+
+
+def test_srs_buttons_submission_and_no_sticky_focus(mobile_page: Page):
+    """Behavior (d): Clicking V or X submits review, transitions,
+    and does not leave sticky persistent focus highlight styles.
+    """
+    page = mobile_page
+
+    # Log in
+    if page.locator("#btn-open-login").is_visible():
+        page.locator("#btn-open-login").click()
+        page.locator("#quick-demo-btn").click()
+        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
+
+    # Add two words for testing
+    page.locator("#quick-word-input").fill("apple - яблоко")
+    page.locator("#btn-quick-send").click()
+    page.wait_for_timeout(300)
+
+    page.locator("#quick-word-input").fill("banana - банан")
+    page.locator("#btn-quick-send").click()
+    page.wait_for_timeout(300)
+
+    # Flip card
+    page.locator("#flashcard").click()
+    expect(page.locator("#flashcard")).to_have_class(re.compile(r"is-flipped"))
+
+    btn_correct = page.locator("#btn-srs-correct")
+    btn_wrong = page.locator("#btn-srs-wrong")
+    expect(btn_correct).to_be_visible()
+    expect(btn_wrong).to_be_visible()
+
+    # Click Green ✓
+    btn_correct.click()
+
+    # Verify button is blurred and not retaining document.activeElement focus
+    is_active_correct = btn_correct.evaluate("el => document.activeElement === el")
+    assert not is_active_correct, "Green ✓ button should be blurred after click (no sticky focus)"
+
+    # Wait for deck queue transition
+    page.wait_for_timeout(400)
+
+    # Flip next card and click Red ✕
+    if page.locator("#flashcard").is_visible():
+        page.locator("#flashcard").click()
+        btn_wrong.click()
+        is_active_wrong = btn_wrong.evaluate("el => document.activeElement === el")
+        assert not is_active_wrong, "Red ✕ button should be blurred after click (no sticky focus)"
+
+
 def test_word_addition_and_flashcard_display(mobile_page: Page):
-    """Test (b): Word Addition.
-    Authenticate, type into floating bottom dock, submit via send button,
-    and verify word appears on floating flashcard.
+    """Behavior (e): Adding a word via bottom dock creates word
+    and shows it immediately on flashcard, resetting empty state.
     """
     page = mobile_page
 
@@ -99,6 +268,12 @@ def test_word_addition_and_flashcard_display(mobile_page: Page):
     expect(card_word).to_be_visible()
     expect(card_word).to_have_text(word_text)
 
+    # Verify input field is cleared
+    expect(quick_input).to_have_value("")
+
+    # Verify empty state is hidden
+    expect(page.locator("#empty-state")).not_to_be_visible()
+
     # Capture screenshot of the front flashcard
     screenshot_path = SCREENSHOTS_DIR / "mobile_card_front.png"
     page.screenshot(path=str(screenshot_path))
@@ -106,7 +281,7 @@ def test_word_addition_and_flashcard_display(mobile_page: Page):
 
 
 def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
-    """Test (c): Flashcard Flip & SRS buttons styling and layout.
+    """Test: Flashcard Flip & SRS buttons styling and layout.
     Verify target word on front, tap to flip, verify translation revealed,
     verify Red ✕, Audio 🔊, and Green ✓ buttons are visible, correctly styled,
     and strictly within screen bounds with no horizontal overflow.
@@ -253,61 +428,9 @@ def test_narrow_mobile_viewport_320px_no_overflow(narrow_mobile_page: Page):
     assert screenshot_path.exists() and screenshot_path.stat().st_size > 0
 
 
-def test_srs_review_action_feedback_and_transition(mobile_page: Page):
-    """Test (d): SRS Review action.
-    Tap ✕ or ✓ and verify transition / feedback.
-    """
-    page = mobile_page
-
-    # Ensure logged in
-    if page.locator("#btn-open-login").is_visible():
-        page.locator("#btn-open-login").click()
-        page.locator("#quick-demo-btn").click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
-
-    # Add two words for testing review flow
-    page.locator("#quick-word-input").fill("cat - кот")
-    page.locator("#btn-quick-send").click()
-    page.wait_for_timeout(300)
-
-    page.locator("#quick-word-input").fill("dog - собака")
-    page.locator("#btn-quick-send").click()
-    page.wait_for_timeout(300)
-
-    # Flip active card
-    page.locator("#flashcard").click()
-    expect(page.locator("#flashcard")).to_have_class(re.compile(r"is-flipped"))
-
-    # Test audio button click (should not error or flip/navigate away)
-    btn_audio = page.locator("#btn-audio")
-    expect(btn_audio).to_be_visible()
-    btn_audio.click()
-
-    # Tap the Green ✓ (Remembered) button
-    btn_correct = page.locator("#btn-srs-correct")
-    expect(btn_correct).to_be_visible()
-    btn_correct.click()
-
-    # Verify no floating toast bubbles appear
-    expect(page.locator(".toast")).to_have_count(0)
-
-    # Wait a moment for deck state update
-    page.wait_for_timeout(500)
-
-    # Flip the next card and tap Red ✕ (Forgot) button
-    if page.locator("#flashcard").is_visible():
-        page.locator("#flashcard").click()
-        btn_wrong = page.locator("#btn-srs-wrong")
-        expect(btn_wrong).to_be_visible()
-        btn_wrong.click()
-
-        # Verify no floating toast bubbles appear
-        expect(page.locator(".toast")).to_have_count(0)
-
-
 def test_visual_screenshots_generated(mobile_page: Page):
-    """Test (e): Visual Screenshot Testing.
-    Capture and verify mobile screenshot(s) saved to tests/screenshots/.
+    """Visual Screenshot Testing:
+    Verify mobile screenshots saved to tests/screenshots/.
     """
     expected_screenshots = [
         "mobile_layout_initial.png",

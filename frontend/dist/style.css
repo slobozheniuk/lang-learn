@@ -284,7 +284,8 @@ button {
   border-radius: var(--radius-xl);
 }
 
-.flashcard.is-flipped {
+.flashcard.is-flipped,
+.flashcard.flipped {
   transform: rotateY(180deg);
 }
 
@@ -431,6 +432,16 @@ button {
   justify-content: center;
 }
 
+/* SRS Button Focus & Highlight Management */
+.srs-btn:focus {
+  outline: none;
+}
+
+.srs-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 /* Red button: ✕ (Forgot / again) */
 .srs-btn-again,
 .srs-btn-wrong {
@@ -439,16 +450,20 @@ button {
   border-color: var(--srs-again);
 }
 
-.srs-btn-again:hover,
-.srs-btn-wrong:hover {
-  background-color: var(--srs-again);
-  color: #ffffff;
-  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
-  transform: translateY(-2px) scale(1.06);
+@media (hover: hover) and (pointer: fine) {
+  .srs-btn-again:hover,
+  .srs-btn-wrong:hover {
+    background-color: var(--srs-again);
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+    transform: translateY(-2px) scale(1.06);
+  }
 }
 
 .srs-btn-again:active,
 .srs-btn-wrong:active {
+  background-color: var(--srs-again);
+  color: #ffffff;
   transform: translateY(1px) scale(0.94);
   box-shadow: 0 2px 6px rgba(239, 68, 68, 0.2);
 }
@@ -460,15 +475,19 @@ button {
   border-color: var(--border-color);
 }
 
-.srs-btn-audio:hover {
-  background-color: var(--color-primary);
-  color: #ffffff;
-  border-color: var(--color-primary);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
-  transform: translateY(-2px) scale(1.06);
+@media (hover: hover) and (pointer: fine) {
+  .srs-btn-audio:hover {
+    background-color: var(--color-primary);
+    color: #ffffff;
+    border-color: var(--color-primary);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+    transform: translateY(-2px) scale(1.06);
+  }
 }
 
 .srs-btn-audio:active {
+  background-color: var(--color-primary);
+  color: #ffffff;
   transform: translateY(1px) scale(0.94);
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
 }
@@ -481,16 +500,20 @@ button {
   border-color: var(--srs-good);
 }
 
-.srs-btn-good:hover,
-.srs-btn-correct:hover {
-  background-color: var(--srs-good);
-  color: #ffffff;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
-  transform: translateY(-2px) scale(1.06);
+@media (hover: hover) and (pointer: fine) {
+  .srs-btn-good:hover,
+  .srs-btn-correct:hover {
+    background-color: var(--srs-good);
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+    transform: translateY(-2px) scale(1.06);
+  }
 }
 
 .srs-btn-good:active,
 .srs-btn-correct:active {
+  background-color: var(--srs-good);
+  color: #ffffff;
   transform: translateY(1px) scale(0.94);
   box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
 }
@@ -568,9 +591,13 @@ button {
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-.modal-backdrop.is-open {
+.modal-backdrop.is-open,
+.modal-backdrop.open,
+.modal-backdrop.active,
+.modal-backdrop.show {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .modal-dialog {
@@ -585,7 +612,10 @@ button {
   transition: transform 0.2s ease;
 }
 
-.modal-backdrop.is-open .modal-dialog {
+.modal-backdrop.is-open .modal-dialog,
+.modal-backdrop.open .modal-dialog,
+.modal-backdrop.active .modal-dialog,
+.modal-backdrop.show .modal-dialog {
   transform: scale(1);
 }
 

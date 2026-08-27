@@ -158,9 +158,10 @@
   }
 
   function renderAuthNav() {
+    if (!el.authNav) return;
     if (state.token && state.user) {
       el.authNav.innerHTML = `
-        <div class="user-badge" title="Logged in as ${state.user.username}">
+        <div class="user-badge" title="Logged in as ${escapeHtml(state.user.username)}">
           <span>👤</span>
           <span class="user-name">${escapeHtml(state.user.username)}</span>
         </div>
@@ -178,7 +179,8 @@
       `;
       const btnOpenLogin = document.getElementById('btn-open-login');
       if (btnOpenLogin) {
-        btnOpenLogin.addEventListener('click', () => {
+        btnOpenLogin.addEventListener('click', (e) => {
+          e.preventDefault();
           openAuthModal('login');
         });
       }
@@ -186,36 +188,51 @@
   }
 
   function openAuthModal(tab = 'login') {
+    const modal = el.authModal || document.getElementById('auth-modal');
+    if (!modal) return;
     state.authModalTab = tab;
-    el.authAlert.classList.remove('show');
-    el.authAlert.textContent = '';
+    if (el.authAlert) {
+      el.authAlert.classList.remove('show');
+      el.authAlert.textContent = '';
+    }
     switchAuthTab(tab);
-    el.authModal.classList.add('is-open');
+    modal.classList.add('is-open', 'open', 'active', 'show');
   }
 
   function closeAuthModal() {
-    el.authModal.classList.remove('is-open');
+    const modal = el.authModal || document.getElementById('auth-modal');
+    if (!modal) return;
+    modal.classList.remove('is-open', 'open', 'active', 'show');
   }
 
   function switchAuthTab(tab) {
     state.authModalTab = tab;
+    const tabLogin = el.tabLogin || document.getElementById('tab-login');
+    const tabRegister = el.tabRegister || document.getElementById('tab-register');
+    const loginForm = el.loginForm || document.getElementById('login-form');
+    const registerForm = el.registerForm || document.getElementById('register-form');
+    const authAlert = el.authAlert || document.getElementById('auth-alert');
+
     if (tab === 'login') {
-      el.tabLogin.classList.add('active');
-      el.tabRegister.classList.remove('active');
-      el.loginForm.style.display = 'flex';
-      el.registerForm.style.display = 'none';
+      if (tabLogin) tabLogin.classList.add('active');
+      if (tabRegister) tabRegister.classList.remove('active');
+      if (loginForm) loginForm.style.display = 'flex';
+      if (registerForm) registerForm.style.display = 'none';
     } else {
-      el.tabRegister.classList.add('active');
-      el.tabLogin.classList.remove('active');
-      el.loginForm.style.display = 'none';
-      el.registerForm.style.display = 'flex';
+      if (tabRegister) tabRegister.classList.add('active');
+      if (tabLogin) tabLogin.classList.remove('active');
+      if (loginForm) loginForm.style.display = 'none';
+      if (registerForm) registerForm.style.display = 'flex';
     }
-    el.authAlert.classList.remove('show');
+    if (authAlert) authAlert.classList.remove('show');
   }
 
   function showAuthError(msg) {
-    el.authAlert.textContent = msg;
-    el.authAlert.classList.add('show');
+    const alert = el.authAlert || document.getElementById('auth-alert');
+    if (alert) {
+      alert.textContent = msg;
+      alert.classList.add('show');
+    }
     triggerHaptic('error');
   }
 
@@ -223,11 +240,11 @@
   async function loadLanguages() {
     try {
       const langs = await api('/api/v1/languages/');
-      state.languages = langs;
+      state.languages = langs || [];
       const regTargetLang = document.getElementById('reg-target-lang');
       if (regTargetLang) {
         regTargetLang.innerHTML = '';
-        langs.forEach(lang => {
+        state.languages.forEach(lang => {
           const opt = document.createElement('option');
           opt.value = lang.code;
           opt.textContent = `${lang.name} (${lang.code.toUpperCase()})`;
@@ -290,8 +307,20 @@
           el.quickWordInput.value = '';
         }
 
-        // Immediately refresh flashcards deck and select newly added word
-        await loadDeck(newWord.id);
+        // Immediately update deck state and render new word on flashcard
+        const newCard = {
+          ...newWord,
+          stats: null,
+          is_new: true,
+        };
+        // Remove existing copy if present and place at active position
+        state.deck = state.deck.filter(w => w.id !== newWord.id);
+        state.deck.unshift(newCard);
+        state.currentIndex = 0;
+        renderDeck();
+
+        // Also fetch updated due reviews in the background
+        loadDeck(newWord.id, newCard).catch(err => console.warn('Background loadDeck failed:', err));
       } catch (err) {
         triggerHaptic('error');
         console.error('Failed to add word:', err);
@@ -304,7 +333,7 @@
   }
 
   // --- Flashcards & Review Deck ---
-  async function loadDeck(selectWordId = null) {
+  async function loadDeck(selectWordId = null, fallbackWord = null) {
     state.isFlipped = false;
 
     try {
@@ -322,6 +351,13 @@
         cards = words || [];
       }
 
+      if (fallbackWord) {
+        const hasFallback = cards.some(w => w.id === fallbackWord.id);
+        if (!hasFallback) {
+          cards.unshift(fallbackWord);
+        }
+      }
+
       state.deck = cards;
       if (selectWordId) {
         const foundIdx = state.deck.findIndex(w => w.id === selectWordId);
@@ -335,8 +371,13 @@
       renderDeck();
     } catch (err) {
       console.error('Error loading deck:', err);
-      state.deck = [];
-      state.currentIndex = 0;
+      if (fallbackWord) {
+        state.deck = [fallbackWord];
+        state.currentIndex = 0;
+      } else {
+        state.deck = [];
+        state.currentIndex = 0;
+      }
       renderDeck();
     }
   }
@@ -356,9 +397,10 @@
     if (el.srsRatingsWrapper) el.srsRatingsWrapper.style.display = 'flex';
 
     const card = state.deck[state.currentIndex];
+    if (!card) return;
 
     // Front
-    if (el.cardWord) el.cardWord.textContent = card.text;
+    if (el.cardWord) el.cardWord.textContent = card.text || '';
     if (el.cardPhonetic) {
       el.cardPhonetic.textContent = card.phonetic ? `[${card.phonetic}]` : (card.pos ? `(${card.pos})` : '');
     }
@@ -376,12 +418,15 @@
   }
 
   function setFlipped(flipped) {
-    state.isFlipped = flipped;
-    if (el.flashcard) {
-      if (flipped) {
-        el.flashcard.classList.add('is-flipped');
+    state.isFlipped = Boolean(flipped);
+    const card = el.flashcard || document.getElementById('flashcard');
+    if (card) {
+      if (state.isFlipped) {
+        card.classList.add('is-flipped', 'flipped');
+        card.setAttribute('aria-expanded', 'true');
       } else {
-        el.flashcard.classList.remove('is-flipped');
+        card.classList.remove('is-flipped', 'flipped');
+        card.setAttribute('aria-expanded', 'false');
       }
     }
   }
@@ -393,34 +438,49 @@
 
   // --- Pronunciation / Audio ---
   function pronounceWord(text, langCode = 'en') {
-    if (!('speechSynthesis' in window)) return;
+    if (!text || typeof window === 'undefined') return;
+    if (!('speechSynthesis' in window)) {
+      console.warn('Speech synthesis not supported');
+      return;
+    }
     try {
       window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
       const utterance = new SpeechSynthesisUtterance(text);
-      if (langCode === 'nl') utterance.lang = 'nl-NL';
-      else if (langCode === 'ru') utterance.lang = 'ru-RU';
-      else utterance.lang = 'en-US';
+      const code = (langCode || 'en').toLowerCase().trim();
+      if (code === 'nl') {
+        utterance.lang = 'nl-NL';
+      } else if (code === 'ru') {
+        utterance.lang = 'ru-RU';
+      } else if (code === 'en') {
+        utterance.lang = 'en-US';
+      } else if (code === 'de') {
+        utterance.lang = 'de-DE';
+      } else if (code === 'fr') {
+        utterance.lang = 'fr-FR';
+      } else if (code === 'es') {
+        utterance.lang = 'es-ES';
+      } else if (code === 'it') {
+        utterance.lang = 'it-IT';
+      } else {
+        utterance.lang = code.includes('-') ? code : `${code}-${code.toUpperCase()}`;
+      }
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.onerror = (e) => console.warn('Utterance error:', e);
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('Speech synthesis error:', e);
     }
   }
 
-  if (el.btnAudio) {
-    el.btnAudio.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (state.deck.length > 0) {
-        const card = state.deck[state.currentIndex];
-        pronounceWord(card.text, card.language_code);
-        triggerHaptic('impact');
-      }
-    });
-  }
-
   // --- SRS Rating Submission ---
   async function submitRating(rating) {
     if (state.deck.length === 0) return;
     const card = state.deck[state.currentIndex];
+    if (!card) return;
 
     if (!state.token) {
       openAuthModal('login');
@@ -455,22 +515,54 @@
     }
   }
 
-  // --- Event Listeners ---
-  // Card Flip
+  // --- Event Listeners & Delegations ---
+  // Card Flip direct listener
   if (el.flashcard) {
-    el.flashcard.addEventListener('click', () => toggleFlip());
+    el.flashcard.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFlip();
+    });
+    el.flashcard.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleFlip();
+      }
+    });
+  }
+
+  // Sound / Pronunciation Button
+  if (el.btnAudio) {
+    el.btnAudio.addEventListener('click', (e) => {
+      e.stopPropagation();
+      el.btnAudio.blur();
+      let text = '';
+      let lang = 'en';
+      if (state.deck.length > 0 && state.currentIndex < state.deck.length) {
+        const card = state.deck[state.currentIndex];
+        text = card.text || '';
+        lang = card.language_code || (state.user && state.user.default_target_lang) || 'en';
+      }
+      if (!text && el.cardWord) {
+        text = el.cardWord.textContent.trim();
+      }
+      if (text) {
+        pronounceWord(text, lang);
+        triggerHaptic('impact');
+      }
+    });
   }
 
   // SRS Rating Buttons (✕ / Forgot -> again, ✓ / Remembered -> good)
   document.querySelectorAll('.srs-btn[data-rating]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      btn.blur();
       const rating = btn.getAttribute('data-rating') || 'again';
       submitRating(rating);
     });
   });
 
-  // Modal handlers
+  // Modal close and tab switching
   if (el.modalCloseBtn) el.modalCloseBtn.addEventListener('click', closeAuthModal);
   if (el.authModal) {
     el.authModal.addEventListener('click', (e) => {
@@ -479,6 +571,51 @@
   }
   if (el.tabLogin) el.tabLogin.addEventListener('click', () => switchAuthTab('login'));
   if (el.tabRegister) el.tabRegister.addEventListener('click', () => switchAuthTab('register'));
+
+  // Global Click Delegation (ensures dynamic/static elements always react)
+  document.addEventListener('click', (e) => {
+    const openLoginBtn = e.target.closest('#btn-open-login, .btn-open-login');
+    if (openLoginBtn) {
+      e.preventDefault();
+      openAuthModal('login');
+      return;
+    }
+
+    const modalClose = e.target.closest('#modal-close-btn');
+    if (modalClose) {
+      e.preventDefault();
+      closeAuthModal();
+      return;
+    }
+
+    const tabBtn = e.target.closest('.modal-tab');
+    if (tabBtn) {
+      if (tabBtn.id === 'tab-login' || tabBtn.textContent.includes('Sign In')) {
+        switchAuthTab('login');
+      } else if (tabBtn.id === 'tab-register' || tabBtn.textContent.includes('Register')) {
+        switchAuthTab('register');
+      }
+      return;
+    }
+
+    const audioBtn = e.target.closest('#btn-audio, .srs-btn-audio');
+    if (audioBtn) {
+      audioBtn.blur();
+      return;
+    }
+
+    const srsBtn = e.target.closest('.srs-btn[data-rating]');
+    if (srsBtn) {
+      srsBtn.blur();
+      return;
+    }
+
+    const card = e.target.closest('#flashcard, .flashcard');
+    if (card && !e.target.closest('button, input, select, textarea, a')) {
+      toggleFlip();
+      return;
+    }
+  });
 
   // Login Submit
   if (el.loginForm) {
@@ -591,6 +728,11 @@
 
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeAuthModal();
+      return;
+    }
+
     // Disable shortcuts when typing in inputs
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
       return;
@@ -629,6 +771,7 @@
 
   // --- Initial Boot ---
   async function init() {
+    renderAuthNav();
     await checkAuth();
     await loadLanguages();
     await loadDeck();
