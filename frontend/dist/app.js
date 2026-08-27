@@ -39,7 +39,7 @@
     languages: [],
     deck: [],
     currentIndex: 0,
-    deckMode: 'due', // 'due' or 'all'
+    deckMode: 'due',
     isFlipped: false,
     authModalTab: 'login', // 'login' or 'register'
   };
@@ -63,30 +63,18 @@
     btnQuickSend: document.getElementById('btn-quick-send'),
 
     // Flashcard View
-    deckTabDue: document.getElementById('tab-due'),
-    deckTabAll: document.getElementById('tab-all'),
-    deckCounter: document.getElementById('deck-counter'),
     flashcardScene: document.getElementById('flashcard-scene'),
     flashcard: document.getElementById('flashcard'),
-    cardTag: document.getElementById('card-tag'),
     cardWord: document.getElementById('card-word'),
     cardPhonetic: document.getElementById('card-phonetic'),
-    cardAudioBtn: document.getElementById('card-audio-btn'),
     cardTranslation: document.getElementById('card-translation'),
     cardContext: document.getElementById('card-context'),
-    cardStats: document.getElementById('card-stats'),
     srsRatingsWrapper: document.getElementById('srs-ratings-wrapper'),
+    btnAudio: document.getElementById('btn-audio'),
     emptyState: document.getElementById('empty-state'),
     emptyIcon: document.getElementById('empty-icon'),
     emptyTitle: document.getElementById('empty-title'),
     emptyDesc: document.getElementById('empty-desc'),
-    emptyActionBtn: document.getElementById('empty-action-btn'),
-
-    // Nav buttons
-    btnPrevCard: document.getElementById('btn-prev-card'),
-    btnFlipCard: document.getElementById('btn-flip-card'),
-    btnNextCard: document.getElementById('btn-next-card'),
-    btnDeleteCard: document.getElementById('btn-delete-card'),
   };
 
   // --- API Client ---
@@ -142,7 +130,7 @@
     localStorage.setItem('ll_token', token);
     localStorage.setItem('ll_user', JSON.stringify(user));
     renderAuthNav();
-    loadLanguages().then(() => loadDeck(state.deckMode));
+    loadLanguages().then(() => loadDeck());
   }
 
   function clearAuth() {
@@ -151,7 +139,7 @@
     localStorage.removeItem('ll_token');
     localStorage.removeItem('ll_user');
     renderAuthNav();
-    loadDeck(state.deckMode);
+    loadDeck();
   }
 
   async function checkAuth() {
@@ -178,16 +166,22 @@
         </div>
         <button id="btn-logout" class="btn btn-outline btn-sm">Sign Out</button>
       `;
-      document.getElementById('btn-logout').addEventListener('click', () => {
-        clearAuth();
-      });
+      const btnLogout = document.getElementById('btn-logout');
+      if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+          clearAuth();
+        });
+      }
     } else {
       el.authNav.innerHTML = `
         <button id="btn-open-login" class="btn btn-primary btn-sm">Sign In / Register</button>
       `;
-      document.getElementById('btn-open-login').addEventListener('click', () => {
-        openAuthModal('login');
-      });
+      const btnOpenLogin = document.getElementById('btn-open-login');
+      if (btnOpenLogin) {
+        btnOpenLogin.addEventListener('click', () => {
+          openAuthModal('login');
+        });
+      }
     }
   }
 
@@ -297,7 +291,7 @@
         }
 
         // Immediately refresh flashcards deck and select newly added word
-        await loadDeck(state.deckMode, newWord.id);
+        await loadDeck(newWord.id);
       } catch (err) {
         triggerHaptic('error');
         console.error('Failed to add word:', err);
@@ -310,28 +304,20 @@
   }
 
   // --- Flashcards & Review Deck ---
-  async function loadDeck(mode = 'due', selectWordId = null) {
-    state.deckMode = mode;
+  async function loadDeck(selectWordId = null) {
     state.isFlipped = false;
-    updateDeckTabs();
 
     try {
       let cards = [];
-      if (mode === 'due') {
-        if (state.token) {
-          const dueItems = await api('/api/v1/review/due');
-          cards = (dueItems || []).map(item => ({
-            ...item.word,
-            stats: item.stats,
-            is_new: item.is_new,
-          }));
-        } else {
-          // If not logged in, fetch general words
-          const words = await api('/api/v1/words/?limit=50');
-          cards = words || [];
-        }
+      if (state.token) {
+        const dueItems = await api('/api/v1/review/due');
+        cards = (dueItems || []).map(item => ({
+          ...item.word,
+          stats: item.stats,
+          is_new: item.is_new,
+        }));
       } else {
-        // 'all' words
+        // If not logged in, fetch general words
         const words = await api('/api/v1/words/?limit=50');
         cards = words || [];
       }
@@ -355,79 +341,48 @@
     }
   }
 
-  function updateDeckTabs() {
-    if (state.deckMode === 'due') {
-      el.deckTabDue.classList.add('active');
-      el.deckTabAll.classList.remove('active');
-    } else {
-      el.deckTabAll.classList.add('active');
-      el.deckTabDue.classList.remove('active');
-    }
-  }
-
   function renderDeck() {
     setFlipped(false);
 
     if (state.deck.length === 0) {
-      el.flashcardScene.style.display = 'none';
-      el.srsRatingsWrapper.style.display = 'none';
-      el.deckCounter.textContent = '0 cards';
-      el.emptyState.style.display = 'flex';
-
-      if (state.deckMode === 'due') {
-        el.emptyIcon.textContent = '🎉';
-        el.emptyTitle.textContent = 'All caught up!';
-        el.emptyDesc.textContent = 'No cards currently due for review. Add more words below or practice all cards in your deck.';
-        el.emptyActionBtn.style.display = 'inline-flex';
-        el.emptyActionBtn.textContent = 'Review All Flashcards';
-        el.emptyActionBtn.onclick = () => loadDeck('all');
-      } else {
-        el.emptyIcon.textContent = '✨';
-        el.emptyTitle.textContent = 'No flashcards yet';
-        el.emptyDesc.textContent = 'Type a word in the bar below to start learning!';
-        el.emptyActionBtn.style.display = 'none';
-      }
+      if (el.flashcardScene) el.flashcardScene.style.display = 'none';
+      if (el.srsRatingsWrapper) el.srsRatingsWrapper.style.display = 'none';
+      if (el.emptyState) el.emptyState.style.display = 'flex';
       return;
     }
 
-    el.emptyState.style.display = 'none';
-    el.flashcardScene.style.display = 'block';
-    el.srsRatingsWrapper.style.display = 'flex';
+    if (el.emptyState) el.emptyState.style.display = 'none';
+    if (el.flashcardScene) el.flashcardScene.style.display = 'block';
+    if (el.srsRatingsWrapper) el.srsRatingsWrapper.style.display = 'flex';
 
     const card = state.deck[state.currentIndex];
-    el.deckCounter.textContent = `Card ${state.currentIndex + 1} of ${state.deck.length}`;
 
     // Front
-    el.cardTag.textContent = (card.language_code || 'EN').toUpperCase();
-    el.cardWord.textContent = card.text;
-    el.cardPhonetic.textContent = card.phonetic ? `[${card.phonetic}]` : (card.pos ? `(${card.pos})` : '');
-
-    // Back
-    el.cardTranslation.textContent = card.translation || '—';
-    if (card.context_phrase) {
-      el.cardContext.textContent = `"${card.context_phrase}"`;
-      el.cardContext.style.display = 'block';
-    } else {
-      el.cardContext.style.display = 'none';
+    if (el.cardWord) el.cardWord.textContent = card.text;
+    if (el.cardPhonetic) {
+      el.cardPhonetic.textContent = card.phonetic ? `[${card.phonetic}]` : (card.pos ? `(${card.pos})` : '');
     }
 
-    // Stats pill
-    if (card.user_stats || card.stats) {
-      const s = card.user_stats || card.stats;
-      el.cardStats.textContent = `Rep: ${s.repetition_number || 0} • Interval: ${(s.interval_days || 0).toFixed(1)}d • EF: ${(s.ease_factor || 2.5).toFixed(2)}`;
-      el.cardStats.style.display = 'inline-block';
-    } else {
-      el.cardStats.textContent = 'New Card';
-      el.cardStats.style.display = 'inline-block';
+    // Back
+    if (el.cardTranslation) el.cardTranslation.textContent = card.translation || '—';
+    if (el.cardContext) {
+      if (card.context_phrase) {
+        el.cardContext.textContent = `"${card.context_phrase}"`;
+        el.cardContext.style.display = 'block';
+      } else {
+        el.cardContext.style.display = 'none';
+      }
     }
   }
 
   function setFlipped(flipped) {
     state.isFlipped = flipped;
-    if (flipped) {
-      el.flashcard.classList.add('is-flipped');
-    } else {
-      el.flashcard.classList.remove('is-flipped');
+    if (el.flashcard) {
+      if (flipped) {
+        el.flashcard.classList.add('is-flipped');
+      } else {
+        el.flashcard.classList.remove('is-flipped');
+      }
     }
   }
 
@@ -436,37 +391,31 @@
     triggerHaptic('impact');
   }
 
-  function nextCard() {
-    if (state.deck.length === 0) return;
-    state.currentIndex = (state.currentIndex + 1) % state.deck.length;
-    renderDeck();
-  }
-
-  function prevCard() {
-    if (state.deck.length === 0) return;
-    state.currentIndex = (state.currentIndex - 1 + state.deck.length) % state.deck.length;
-    renderDeck();
-  }
-
   // --- Pronunciation / Audio ---
   function pronounceWord(text, langCode = 'en') {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (langCode === 'nl') utterance.lang = 'nl-NL';
-    else if (langCode === 'ru') utterance.lang = 'ru-RU';
-    else utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (langCode === 'nl') utterance.lang = 'nl-NL';
+      else if (langCode === 'ru') utterance.lang = 'ru-RU';
+      else utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+    }
   }
 
-  el.cardAudioBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (state.deck.length > 0) {
-      const card = state.deck[state.currentIndex];
-      pronounceWord(card.text, card.language_code);
-      triggerHaptic('impact');
-    }
-  });
+  if (el.btnAudio) {
+    el.btnAudio.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.deck.length > 0) {
+        const card = state.deck[state.currentIndex];
+        pronounceWord(card.text, card.language_code);
+        triggerHaptic('impact');
+      }
+    });
+  }
 
   // --- SRS Rating Submission ---
   async function submitRating(rating) {
@@ -494,60 +443,26 @@
         }),
       });
 
-      // In 'due' mode, remove this card from queue or reload
-      if (state.deckMode === 'due') {
-        state.deck.splice(state.currentIndex, 1);
-        if (state.currentIndex >= state.deck.length) {
-          state.currentIndex = 0;
-        }
-        renderDeck();
-      } else {
-        nextCard();
+      // Remove reviewed card from deck queue
+      state.deck.splice(state.currentIndex, 1);
+      if (state.currentIndex >= state.deck.length) {
+        state.currentIndex = 0;
       }
+      renderDeck();
     } catch (err) {
       triggerHaptic('error');
       console.error('Failed to submit review rating:', err);
     }
   }
 
-  // --- Card Delete ---
-  async function deleteCurrentCard() {
-    if (state.deck.length === 0) return;
-    const card = state.deck[state.currentIndex];
-    if (!confirm(`Are you sure you want to delete "${card.text}"?`)) return;
-
-    if (!state.token) {
-      openAuthModal('login');
-      return;
-    }
-
-    try {
-      await api(`/api/v1/words/${card.id}`, { method: 'DELETE' });
-      triggerHaptic('success');
-      state.deck.splice(state.currentIndex, 1);
-      if (state.currentIndex >= state.deck.length) {
-        state.currentIndex = Math.max(0, state.deck.length - 1);
-      }
-      renderDeck();
-    } catch (err) {
-      console.error('Failed to delete word:', err);
-    }
+  // --- Event Listeners ---
+  // Card Flip
+  if (el.flashcard) {
+    el.flashcard.addEventListener('click', () => toggleFlip());
   }
 
-  // --- Event Listeners ---
-  // Deck Tabs
-  el.deckTabDue.addEventListener('click', () => loadDeck('due'));
-  el.deckTabAll.addEventListener('click', () => loadDeck('all'));
-
-  // Card Flip & Controls
-  el.flashcard.addEventListener('click', () => toggleFlip());
-  el.btnFlipCard.addEventListener('click', () => toggleFlip());
-  el.btnNextCard.addEventListener('click', () => nextCard());
-  el.btnPrevCard.addEventListener('click', () => prevCard());
-  el.btnDeleteCard.addEventListener('click', () => deleteCurrentCard());
-
   // SRS Rating Buttons (✕ / Forgot -> again, ✓ / Remembered -> good)
-  document.querySelectorAll('.srs-btn').forEach(btn => {
+  document.querySelectorAll('.srs-btn[data-rating]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const rating = btn.getAttribute('data-rating') || 'again';
@@ -556,115 +471,123 @@
   });
 
   // Modal handlers
-  el.modalCloseBtn.addEventListener('click', closeAuthModal);
-  el.authModal.addEventListener('click', (e) => {
-    if (e.target === el.authModal) closeAuthModal();
-  });
-  el.tabLogin.addEventListener('click', () => switchAuthTab('login'));
-  el.tabRegister.addEventListener('click', () => switchAuthTab('register'));
+  if (el.modalCloseBtn) el.modalCloseBtn.addEventListener('click', closeAuthModal);
+  if (el.authModal) {
+    el.authModal.addEventListener('click', (e) => {
+      if (e.target === el.authModal) closeAuthModal();
+    });
+  }
+  if (el.tabLogin) el.tabLogin.addEventListener('click', () => switchAuthTab('login'));
+  if (el.tabRegister) el.tabRegister.addEventListener('click', () => switchAuthTab('register'));
 
   // Login Submit
-  el.loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username_or_email = document.getElementById('login-identifier').value.trim();
-    const password = document.getElementById('login-password').value;
+  if (el.loginForm) {
+    el.loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username_or_email = document.getElementById('login-identifier').value.trim();
+      const password = document.getElementById('login-password').value;
 
-    if (!username_or_email || !password) {
-      showAuthError('Please fill in all fields');
-      return;
-    }
+      if (!username_or_email || !password) {
+        showAuthError('Please fill in all fields');
+        return;
+      }
 
-    try {
-      const res = await api('/api/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username_or_email, password }),
-      });
-      const token = res.access_token;
-      state.token = token;
-      localStorage.setItem('ll_token', token);
-      const user = await api('/api/v1/auth/me');
-      setAuth(token, user);
-      closeAuthModal();
-      triggerHaptic('success');
-    } catch (err) {
-      showAuthError(err.message || 'Invalid username or password');
-    }
-  });
+      try {
+        const res = await api('/api/v1/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username_or_email, password }),
+        });
+        const token = res.access_token;
+        state.token = token;
+        localStorage.setItem('ll_token', token);
+        const user = await api('/api/v1/auth/me');
+        setAuth(token, user);
+        closeAuthModal();
+        triggerHaptic('success');
+      } catch (err) {
+        showAuthError(err.message || 'Invalid username or password');
+      }
+    });
+  }
 
   // Register Submit
-  el.registerForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('reg-username').value.trim();
-    const email = document.getElementById('reg-email').value.trim();
-    const password = document.getElementById('reg-password').value;
-    const default_target_lang = document.getElementById('reg-target-lang').value;
+  if (el.registerForm) {
+    el.registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('reg-username').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const default_target_lang = document.getElementById('reg-target-lang').value;
 
-    if (!username || !email || !password) {
-      showAuthError('Please fill in all fields');
-      return;
-    }
+      if (!username || !email || !password) {
+        showAuthError('Please fill in all fields');
+        return;
+      }
 
-    try {
-      const res = await api('/api/v1/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({
-          username,
-          email,
-          password,
-          default_source_lang: 'ru',
-          default_target_lang: default_target_lang || 'en',
-        }),
-      });
+      try {
+        const res = await api('/api/v1/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+            default_source_lang: 'ru',
+            default_target_lang: default_target_lang || 'en',
+          }),
+        });
 
-      const token = res.token.access_token;
-      const user = res.user;
-      setAuth(token, user);
-      closeAuthModal();
-      triggerHaptic('success');
-    } catch (err) {
-      showAuthError(err.message || 'Registration failed');
-    }
-  });
+        const token = res.token.access_token;
+        const user = res.user;
+        setAuth(token, user);
+        closeAuthModal();
+        triggerHaptic('success');
+      } catch (err) {
+        showAuthError(err.message || 'Registration failed');
+      }
+    });
+  }
 
   // Quick Demo Login Button
-  el.quickDemoBtn.addEventListener('click', async () => {
-    const demoUser = {
-      username: 'demo_student',
-      email: 'student@example.com',
-      password: 'demopassword123',
-      default_source_lang: 'ru',
-      default_target_lang: 'en',
-    };
+  if (el.quickDemoBtn) {
+    el.quickDemoBtn.addEventListener('click', async () => {
+      const demoUser = {
+        username: 'demo_student',
+        email: 'student@example.com',
+        password: 'demopassword123',
+        default_source_lang: 'ru',
+        default_target_lang: 'en',
+      };
 
-    try {
-      // Try login first
-      const res = await api('/api/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          username_or_email: demoUser.username,
-          password: demoUser.password,
-        }),
-      });
-      const token = res.access_token;
-      state.token = token;
-      localStorage.setItem('ll_token', token);
-      const user = await api('/api/v1/auth/me');
-      setAuth(token, user);
-      closeAuthModal();
-    } catch (loginErr) {
-      // If user doesn't exist, register
       try {
-        const regRes = await api('/api/v1/auth/register', {
+        // Try login first
+        const res = await api('/api/v1/auth/login', {
           method: 'POST',
-          body: JSON.stringify(demoUser),
+          body: JSON.stringify({
+            username_or_email: demoUser.username,
+            password: demoUser.password,
+          }),
         });
-        setAuth(regRes.token.access_token, regRes.user);
+        const token = res.access_token;
+        state.token = token;
+        localStorage.setItem('ll_token', token);
+        const user = await api('/api/v1/auth/me');
+        setAuth(token, user);
         closeAuthModal();
-      } catch (regErr) {
-        showAuthError(regErr.message || 'Quick demo login failed');
+      } catch (loginErr) {
+        // If user doesn't exist, register
+        try {
+          const regRes = await api('/api/v1/auth/register', {
+            method: 'POST',
+            body: JSON.stringify(demoUser),
+          });
+          setAuth(regRes.token.access_token, regRes.user);
+          closeAuthModal();
+        } catch (regErr) {
+          showAuthError(regErr.message || 'Quick demo login failed');
+        }
       }
-    }
-  });
+    });
+  }
 
   // Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
@@ -708,7 +631,7 @@
   async function init() {
     await checkAuth();
     await loadLanguages();
-    await loadDeck('due');
+    await loadDeck();
   }
 
   init();

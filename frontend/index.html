@@ -33,78 +33,54 @@
   <!-- Main Container -->
   <main class="app-container">
 
-    <!-- Flashcards / Review Section -->
-    <section class="section-card" aria-labelledby="deck-section-title">
-      <div class="deck-header">
-        <div class="deck-tabs" role="tablist">
-          <button id="tab-due" class="deck-tab active" role="tab">Due for Review</button>
-          <button id="tab-all" class="deck-tab" role="tab">All Words</button>
-        </div>
-        <span id="deck-counter" class="deck-counter">0 cards</span>
-      </div>
-
-      <!-- 3D Flashcard Presentation -->
-      <div id="flashcard-scene" class="flashcard-scene">
-        <div id="flashcard" class="flashcard" role="button" tabindex="0" aria-label="Flashcard. Click to flip">
-          <!-- Front Face -->
-          <div class="card-face card-face-front">
-            <div class="card-top-bar">
-              <span id="card-tag" class="card-tag">EN</span>
-              <button id="card-audio-btn" class="card-audio-btn" title="Pronounce word" aria-label="Pronounce word">🔊</button>
-            </div>
-            <div class="card-main-content">
-              <div id="card-word" class="card-word">word</div>
-              <div id="card-phonetic" class="card-phonetic"></div>
-            </div>
-            <div class="card-bottom-hint">
-              <span>👆 Tap card to flip and reveal translation</span>
-            </div>
+    <!-- 3D Flashcard Presentation -->
+    <div id="flashcard-scene" class="flashcard-scene">
+      <div id="flashcard" class="flashcard" role="button" tabindex="0" aria-label="Flashcard. Click to flip">
+        <!-- Front Face -->
+        <div class="card-face card-face-front">
+          <div class="card-main-content">
+            <div id="card-word" class="card-word">word</div>
+            <div id="card-phonetic" class="card-phonetic"></div>
           </div>
+          <div class="card-bottom-hint">
+            <span>👆 Tap card to flip and reveal translation</span>
+          </div>
+        </div>
 
-          <!-- Back Face -->
-          <div class="card-face card-face-back">
-            <div class="card-top-bar">
-              <span id="card-stats" class="card-stats-pill">New Card</span>
-            </div>
-            <div class="card-main-content">
-              <div id="card-translation" class="card-translation">translation</div>
-              <div id="card-context" class="card-context" style="display: none;"></div>
-            </div>
-            <div class="card-bottom-hint">
-              <span>Rate your recall below:</span>
-            </div>
+        <!-- Back Face -->
+        <div class="card-face card-face-back">
+          <div class="card-main-content">
+            <div id="card-translation" class="card-translation">translation</div>
+            <div id="card-context" class="card-context" style="display: none;"></div>
+          </div>
+          <div class="card-bottom-hint">
+            <span>Rate your recall below:</span>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- SRS Rating Buttons (Shown for active card) -->
-      <div id="srs-ratings-wrapper" class="srs-ratings-wrapper">
-        <div class="srs-buttons-grid">
-          <button id="btn-srs-wrong" class="srs-btn srs-btn-again srs-btn-wrong" data-rating="again" title="Forgot / Incorrect" aria-label="Forgot or Incorrect">
-            <span class="srs-btn-icon">✕</span>
-          </button>
-          <button id="btn-srs-correct" class="srs-btn srs-btn-good srs-btn-correct" data-rating="good" title="Remembered / Correct" aria-label="Remembered or Correct">
-            <span class="srs-btn-icon">✓</span>
-          </button>
-        </div>
+    <!-- SRS Action Buttons (Red ✕, Audio 🔊, Green ✓) -->
+    <div id="srs-ratings-wrapper" class="srs-ratings-wrapper">
+      <div class="srs-buttons-grid">
+        <button id="btn-srs-wrong" class="srs-btn srs-btn-again srs-btn-wrong" data-rating="again" title="Forgot / Incorrect" aria-label="Forgot or Incorrect">
+          <span class="srs-btn-icon">✕</span>
+        </button>
+        <button id="btn-audio" class="srs-btn srs-btn-audio" title="Pronounce word" aria-label="Pronounce word">
+          <span class="srs-btn-icon">🔊</span>
+        </button>
+        <button id="btn-srs-correct" class="srs-btn srs-btn-good srs-btn-correct" data-rating="good" title="Remembered / Correct" aria-label="Remembered or Correct">
+          <span class="srs-btn-icon">✓</span>
+        </button>
       </div>
+    </div>
 
-      <!-- Card Navigation Toolbar -->
-      <div class="card-nav-bar">
-        <button id="btn-prev-card" class="btn btn-outline btn-sm">◀ Prev</button>
-        <button id="btn-flip-card" class="btn btn-outline btn-sm">↻ Flip (Space)</button>
-        <button id="btn-next-card" class="btn btn-outline btn-sm">Next ▶</button>
-        <button id="btn-delete-card" class="btn btn-outline btn-sm" title="Delete word">🗑️</button>
-      </div>
-
-      <!-- Empty State -->
-      <div id="empty-state" class="empty-state" style="display: none;">
-        <div id="empty-icon" class="empty-icon">✨</div>
-        <h3 id="empty-title" class="empty-title">No flashcards yet</h3>
-        <p id="empty-desc" class="empty-desc">Type a word in the bar below to start learning!</p>
-        <button id="empty-action-btn" class="btn btn-primary btn-sm" style="display: none;">Review All Flashcards</button>
-      </div>
-    </section>
+    <!-- Clean Empty State -->
+    <div id="empty-state" class="empty-state" style="display: none;">
+      <div id="empty-icon" class="empty-icon">✨</div>
+      <h3 id="empty-title" class="empty-title">No flashcards yet</h3>
+      <p id="empty-desc" class="empty-desc">Type a word in the bar below to start learning!</p>
+    </div>
 
   </main>
 

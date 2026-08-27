@@ -60,7 +60,7 @@ def test_mobile_layout_and_fixed_elements(mobile_page: Page):
 def test_word_addition_and_flashcard_display(mobile_page: Page):
     """Test (b): Word Addition.
     Authenticate, type into floating bottom dock, submit via send button,
-    and verify word appears on flashcard.
+    and verify word appears on floating flashcard.
     """
     page = mobile_page
 
@@ -108,8 +108,8 @@ def test_word_addition_and_flashcard_display(mobile_page: Page):
 def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
     """Test (c): Flashcard Flip & SRS buttons styling and layout.
     Verify target word on front, tap to flip, verify translation revealed,
-    verify Red ✕ and Green ✓ buttons are visible, correctly styled,
-    and strictly within panel/screen bounds with no horizontal overflow.
+    verify Red ✕, Audio 🔊, and Green ✓ buttons are visible, correctly styled,
+    and strictly within screen bounds with no horizontal overflow.
     """
     page = mobile_page
 
@@ -139,54 +139,53 @@ def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
     expect(translation).to_be_visible()
     assert len(translation.inner_text().strip()) > 0
 
-    # Locate SRS rating buttons
+    # Locate control action buttons
     ratings_wrapper = page.locator("#srs-ratings-wrapper")
     expect(ratings_wrapper).to_be_visible()
 
     btn_wrong = page.locator("#btn-srs-wrong")
+    btn_audio = page.locator("#btn-audio")
     btn_correct = page.locator("#btn-srs-correct")
 
     expect(btn_wrong).to_be_visible()
+    expect(btn_audio).to_be_visible()
     expect(btn_correct).to_be_visible()
 
-    # Verify buttons contain clean icons ✕ and ✓ ONLY (no 'Forgot', 'Remembered', '[1]', '[2]')
+    # Verify buttons contain clean icons ✕, 🔊, and ✓ ONLY
     wrong_text = btn_wrong.inner_text().strip()
+    audio_text = btn_audio.inner_text().strip()
     correct_text = btn_correct.inner_text().strip()
 
     assert wrong_text == "✕", f"Red button text should only be '✕', got '{wrong_text}'"
+    assert audio_text == "🔊", f"Audio button text should only be '🔊', got '{audio_text}'"
     assert correct_text == "✓", f"Green button text should only be '✓', got '{correct_text}'"
 
-    assert "Forgot" not in wrong_text
-    assert "[1]" not in wrong_text
-    assert "Remembered" not in correct_text
-    assert "[2]" not in correct_text
-
-    # Verify button dimensions & styling: circular/rounded action buttons (width ≈ height, 48-56px)
+    # Verify button dimensions & styling: circular action buttons (width ≈ height, 44-60px)
     wrong_box = btn_wrong.bounding_box()
+    audio_box = btn_audio.bounding_box()
     correct_box = btn_correct.bounding_box()
-    assert wrong_box is not None and correct_box is not None
+    assert wrong_box is not None and audio_box is not None and correct_box is not None
 
-    assert 44 <= wrong_box["width"] <= 60, f"Red button width {wrong_box['width']} should be ~48-56px"
-    assert 44 <= wrong_box["height"] <= 60, f"Red button height {wrong_box['height']} should be ~48-56px"
-    assert abs(wrong_box["width"] - wrong_box["height"]) <= 4, "Red button should be circular (width ≈ height)"
+    for name, box in [("Red ✕", wrong_box), ("Audio 🔊", audio_box), ("Green ✓", correct_box)]:
+        assert 44 <= box["width"] <= 60, f"{name} button width {box['width']} should be ~48-56px"
+        assert 44 <= box["height"] <= 60, f"{name} button height {box['height']} should be ~48-56px"
+        assert abs(box["width"] - box["height"]) <= 4, f"{name} button should be circular (width ≈ height)"
 
-    assert 44 <= correct_box["width"] <= 60, f"Green button width {correct_box['width']} should be ~48-56px"
-    assert 44 <= correct_box["height"] <= 60, f"Green button height {correct_box['height']} should be ~48-56px"
-    assert abs(correct_box["width"] - correct_box["height"]) <= 4, "Green button should be circular (width ≈ height)"
-
-    # Verify buttons are centered side-by-side in flex container with gap
-    assert wrong_box["x"] + wrong_box["width"] < correct_box["x"], "Buttons should be side-by-side (wrong on left, correct on right)"
-    assert abs(wrong_box["y"] - correct_box["y"]) < 5, "Buttons should be aligned on the same horizontal row"
+    # Verify buttons are centered side-by-side in row: ✕ on left, 🔊 in middle, ✓ on right
+    assert wrong_box["x"] + wrong_box["width"] < audio_box["x"], "Red ✕ should be to the left of Audio 🔊"
+    assert audio_box["x"] + audio_box["width"] < correct_box["x"], "Audio 🔊 should be to the left of Green ✓"
+    assert abs(wrong_box["y"] - audio_box["y"]) < 5, "Buttons should be aligned on the same horizontal row"
+    assert abs(audio_box["y"] - correct_box["y"]) < 5, "Buttons should be aligned on the same horizontal row"
 
     # Verify border-radius is circular (50% or >= 24px)
-    wrong_radius = btn_wrong.evaluate("el => window.getComputedStyle(el).borderRadius")
-    correct_radius = btn_correct.evaluate("el => window.getComputedStyle(el).borderRadius")
-    assert "50%" in wrong_radius or any(float(p.replace("px", "")) >= 24 for p in wrong_radius.split() if "px" in p)
-    assert "50%" in correct_radius or any(float(p.replace("px", "")) >= 24 for p in correct_radius.split() if "px" in p)
+    for btn in [btn_wrong, btn_audio, btn_correct]:
+        radius = btn.evaluate("el => window.getComputedStyle(el).borderRadius")
+        assert "50%" in radius or any(float(p.replace("px", "")) >= 24 for p in radius.split() if "px" in p)
 
     # Verify bounds: strictly within the mobile screen viewport (390px)
     viewport_width = page.viewport_size["width"]
     assert wrong_box["x"] >= 0 and wrong_box["x"] + wrong_box["width"] <= viewport_width
+    assert audio_box["x"] >= 0 and audio_box["x"] + audio_box["width"] <= viewport_width
     assert correct_box["x"] >= 0 and correct_box["x"] + correct_box["width"] <= viewport_width
 
     # Verify zero horizontal overflow on page
@@ -194,7 +193,7 @@ def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
     client_width = page.evaluate("() => document.documentElement.clientWidth")
     assert scroll_width <= client_width
 
-    # Capture screenshot of flipped card with SRS buttons
+    # Capture screenshot of flipped card with action buttons
     screenshot_path = SCREENSHOTS_DIR / "mobile_card_back_srs.png"
     page.screenshot(path=str(screenshot_path))
     assert screenshot_path.exists() and screenshot_path.stat().st_size > 0
@@ -202,7 +201,7 @@ def test_flashcard_flip_and_srs_buttons_ui(mobile_page: Page):
 
 def test_narrow_mobile_viewport_320px_no_overflow(narrow_mobile_page: Page):
     """Verify that on ultra-narrow mobile viewports (320px width),
-    the SRS buttons and all layout elements fit perfectly without horizontal overflow.
+    the 3 action buttons and all layout elements fit perfectly without horizontal overflow.
     """
     page = narrow_mobile_page
 
@@ -222,18 +221,22 @@ def test_narrow_mobile_viewport_320px_no_overflow(narrow_mobile_page: Page):
     page.locator("#flashcard").click()
     expect(page.locator("#flashcard")).to_have_class(re.compile(r"is-flipped"))
 
-    # Check SRS buttons within 320px viewport
+    # Check 3 action buttons within 320px viewport
     btn_wrong = page.locator("#btn-srs-wrong")
+    btn_audio = page.locator("#btn-audio")
     btn_correct = page.locator("#btn-srs-correct")
 
     expect(btn_wrong).to_be_visible()
+    expect(btn_audio).to_be_visible()
     expect(btn_correct).to_be_visible()
 
     wrong_box = btn_wrong.bounding_box()
+    audio_box = btn_audio.bounding_box()
     correct_box = btn_correct.bounding_box()
-    assert wrong_box is not None and correct_box is not None
+    assert wrong_box is not None and audio_box is not None and correct_box is not None
 
     assert wrong_box["x"] >= 0
+    assert audio_box["x"] > wrong_box["x"]
     assert correct_box["x"] + correct_box["width"] <= 320
 
     # Verify zero horizontal overflow
@@ -241,7 +244,7 @@ def test_narrow_mobile_viewport_320px_no_overflow(narrow_mobile_page: Page):
     client_width = page.evaluate("() => document.documentElement.clientWidth")
     assert scroll_width <= client_width == 320
 
-    # Scroll SRS buttons into view on 320px height
+    # Scroll action buttons into view on 320px height
     btn_wrong.scroll_into_view_if_needed()
 
     # Save screenshot of 320px narrow viewport
@@ -274,6 +277,11 @@ def test_srs_review_action_feedback_and_transition(mobile_page: Page):
     # Flip active card
     page.locator("#flashcard").click()
     expect(page.locator("#flashcard")).to_have_class(re.compile(r"is-flipped"))
+
+    # Test audio button click (should not error or flip/navigate away)
+    btn_audio = page.locator("#btn-audio")
+    expect(btn_audio).to_be_visible()
+    btn_audio.click()
 
     # Tap the Green ✓ (Remembered) button
     btn_correct = page.locator("#btn-srs-correct")
