@@ -1,30 +1,41 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Lesson, Word } from '../types';
+import { LessonItem } from './LessonItem';
 
 interface LessonsViewProps {
   words: Word[];
+  backendLessons?: Lesson[];
   isLoading?: boolean;
   onSelectLesson: (lesson: Lesson) => void;
+  onDeleteLesson?: (lesson: Lesson) => Promise<void> | void;
   onRefresh?: () => void;
 }
 
-export function chunkWordsIntoLessons(words: Word[], wordsPerChunk = 5): Lesson[] {
-  if (!words || words.length === 0) return [];
-  // Sort stably by ID ascending
-  const sorted = [...words].sort((a, b) => a.id - b.id);
+export function chunkWordsIntoLessons(
+  _words: Word[] = [],
+  _wordsPerChunk = 5,
+  backendLessons: Lesson[] = []
+): Lesson[] {
   const lessons: Lesson[] = [];
-  const totalLessons = Math.ceil(sorted.length / wordsPerChunk);
 
-  for (let i = 0; i < totalLessons; i++) {
-    const chunk = sorted.slice(i * wordsPerChunk, (i + 1) * wordsPerChunk);
-    lessons.push({
-      id: i + 1,
-      number: i + 1,
-      title: `Lesson ${i + 1}`,
-      words: chunk,
-      totalWords: chunk.length,
-      targetCount: wordsPerChunk,
-      isComplete: chunk.length === wordsPerChunk,
+  // Append any backend named lessons (quiz lessons, revision lessons, saved lessons)
+  if (backendLessons && backendLessons.length > 0) {
+    backendLessons.forEach((bl, idx) => {
+      const num = idx + 1;
+      lessons.push({
+        ...bl,
+        id: bl.id || (1000 + num),
+        number: num,
+        title: bl.title,
+        words: bl.words || [],
+        totalWords: bl.words ? bl.words.length : 0,
+        targetCount: Math.max(5, bl.words ? bl.words.length : 0),
+        isComplete: bl.is_completed || bl.status === 'completed' || (bl.words && bl.words.length >= 5) || bl.status === 'ready',
+        is_completed: bl.is_completed || bl.status === 'completed',
+        quiz_data: bl.quiz_data,
+        input_type: bl.input_type,
+        status: bl.status,
+      });
     });
   }
 
@@ -33,80 +44,43 @@ export function chunkWordsIntoLessons(words: Word[], wordsPerChunk = 5): Lesson[
 
 export const LessonsView: React.FC<LessonsViewProps> = ({
   words,
+  backendLessons = [],
   onSelectLesson,
+  onDeleteLesson,
 }) => {
-  const lessons = useMemo(() => chunkWordsIntoLessons(words, 5), [words]);
+  const [openMenuLessonId, setOpenMenuLessonId] = useState<number | null>(null);
+
+  const lessons = useMemo(
+    () => chunkWordsIntoLessons(words, 5, backendLessons),
+    [words, backendLessons]
+  );
+
+  const handleToggleMenu = (lessonId: number) => {
+    setOpenMenuLessonId((prev) => (prev === lessonId ? null : lessonId));
+  };
+
+  const handleDelete = async (lesson: Lesson) => {
+    setOpenMenuLessonId(null);
+    if (onDeleteLesson) {
+      await onDeleteLesson(lesson);
+    }
+  };
 
   return (
     <div id="lessons-view" className="lessons-view lessons-container">
-
       {/* Lesson Cards Grid */}
       {lessons.length > 0 ? (
         <div id="lessons-grid" className="lessons-grid">
           {lessons.map((lesson) => (
-            <div
+            <LessonItem
               key={lesson.id}
-              id={`lesson-card-${lesson.number}`}
-              className={`lesson-card ${lesson.isComplete ? 'lesson-card-ready' : 'lesson-card-building'}`}
-              role="button"
-              tabIndex={0}
-              aria-label={`Open ${lesson.title} with ${lesson.totalWords} words`}
-              onClick={() => onSelectLesson(lesson)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectLesson(lesson);
-                }
-              }}
-            >
-              <div className="lesson-card-header">
-                <div className="lesson-card-title-group">
-                  <span className="lesson-icon">📚</span>
-                  <h3 className="lesson-title">{lesson.title}</h3>
-                </div>
-                <span
-                  className={`lesson-badge ${lesson.isComplete ? 'badge-ready' : 'badge-progress'}`}
-                >
-                  {lesson.isComplete ? '5 words' : `${lesson.totalWords} / 5 words`}
-                </span>
-              </div>
-
-              {/* Words Preview Chips */}
-              <div className="lesson-preview-container">
-                <div className="lesson-words-preview">
-                  {lesson.words.map((w) => (
-                    <span
-                      key={w.id}
-                      className="lesson-word-pill"
-                      title={`${w.text} — ${w.translation}`}
-                    >
-                      {w.text}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Progress Bar & Status Indicator */}
-              <div className="lesson-card-progress">
-                <div className="lesson-progress-bar">
-                  <div
-                    className="lesson-progress-fill"
-                    style={{ width: `${(lesson.totalWords / 5) * 100}%` }}
-                  />
-                </div>
-                <span className="lesson-progress-text">
-                  {lesson.isComplete
-                    ? 'Ready to practice'
-                    : `${lesson.totalWords} / 5 words added`}
-                </span>
-              </div>
-
-              {/* Card Footer CTA */}
-              <div className="lesson-card-footer">
-                <span className="lesson-action-cta">▶ Practice Lesson</span>
-                <span className="lesson-arrow">›</span>
-              </div>
-            </div>
+              lesson={lesson}
+              isMenuOpen={openMenuLessonId === lesson.id}
+              onToggleMenu={handleToggleMenu}
+              onDelete={handleDelete}
+              onCloseMenu={() => setOpenMenuLessonId(null)}
+              onSelectLesson={onSelectLesson}
+            />
           ))}
         </div>
       ) : (
@@ -114,13 +88,15 @@ export const LessonsView: React.FC<LessonsViewProps> = ({
           <div className="empty-icon">📚</div>
           <h3 className="empty-title">Welcome to Lessons!</h3>
           <p className="empty-desc">
-            Add words using the input bar below to create lessons (5 words per lesson).
+            Add words or submit text using the input bar below to create quiz lessons.
           </p>
           <div className="lesson-welcome-hint">
-            <span>💡 Enter words with translations (e.g. <code>hello - привет</code>)</span>
+            <span>💡 Enter words with translations (e.g. <code>hello - привет</code>) or paste sentences to generate quizzes</span>
           </div>
         </div>
       )}
     </div>
   );
 };
+
+

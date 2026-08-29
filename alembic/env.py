@@ -57,7 +57,15 @@ def run_migrations_online() -> None:
             context.run_migrations()
 
 
+import logging
+
+logger = logging.getLogger("alembic.env")
+
 if context.is_offline_mode():
+    logger.info("Running Alembic migrations in offline mode...")
     run_migrations_offline()
+    logger.info("Offline migrations completed.")
 else:
+    logger.info("Running Alembic migrations in online mode...")
     run_migrations_online()
+    logger.info("Online migrations completed.")

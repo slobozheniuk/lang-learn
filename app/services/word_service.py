@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.crud.stats import get_user_word_stats
+from app.crud.stats import get_or_create_user_word_stats, get_user_word_stats
 from app.crud.word import (
     create_word as crud_create_word,
     delete_word as crud_delete_word,
@@ -14,13 +14,52 @@ from app.schemas.word import UserWordStatsRead, WordCreate, WordRead
 
 class WordService:
     @staticmethod
-    def create_word(db: Session, word_in: WordCreate) -> Word:
+    def to_read(
+        word: Word,
+        user_id: int | None = None,
+        db: Session | None = None,
+    ) -> WordRead:
+        stats_read = None
+        if user_id:
+            if db:
+                stats = get_user_word_stats(db, user_id=user_id, word_id=word.id)
+                if stats:
+                    stats_read = UserWordStatsRead.model_validate(stats)
+            elif hasattr(word, "user_stats") and isinstance(word.user_stats, list):
+                for s in word.user_stats:
+                    if getattr(s, "user_id", None) == user_id:
+                        stats_read = UserWordStatsRead.model_validate(s)
+                        break
+
+        return WordRead(
+            id=word.id,
+            language_code=word.language_code,
+            text=word.text,
+            lemma=word.lemma,
+            pos=word.pos,
+            phonetic=word.phonetic,
+            translation=word.translation,
+            context_phrase=word.context_phrase,
+            audio_url=word.audio_url,
+            created_at=word.created_at,
+            updated_at=word.updated_at,
+            user_stats=stats_read,
+        )
+
+    @staticmethod
+    def create_word(db: Session, word_in: WordCreate, user_id: int | None = None) -> Word:
         existing = get_word_by_text_and_lang(
             db, text=word_in.text, language_code=word_in.language_code
         )
         if existing:
-            return existing
-        return crud_create_word(db, word_in)
+            word = existing
+        else:
+            word = crud_create_word(db, word_in)
+
+        if user_id:
+            get_or_create_user_word_stats(db, user_id=user_id, word_id=word.id)
+
+        return word
 
     @staticmethod
     def get_word(
@@ -32,8 +71,9 @@ class WordService:
         stats_read = None
         if user_id:
             stats = get_user_word_stats(db, user_id=user_id, word_id=word.id)
-            if stats:
-                stats_read = UserWordStatsRead.model_validate(stats)
+            if not stats:
+                return None
+            stats_read = UserWordStatsRead.model_validate(stats)
 
         return WordRead(
             id=word.id,
@@ -59,8 +99,11 @@ class WordService:
         limit: int = 50,
         user_id: int | None = None,
     ) -> list[WordRead]:
+        if user_id is None:
+            return []
         words = get_words(
             db,
+            user_id=user_id,
             language_code=language_code,
             search=search,
             skip=skip,
@@ -68,11 +111,8 @@ class WordService:
         )
         results: list[WordRead] = []
         for word in words:
-            stats_read = None
-            if user_id:
-                stats = get_user_word_stats(db, user_id=user_id, word_id=word.id)
-                if stats:
-                    stats_read = UserWordStatsRead.model_validate(stats)
+            stats = get_user_word_stats(db, user_id=user_id, word_id=word.id)
+            stats_read = UserWordStatsRead.model_validate(stats) if stats else None
             results.append(
                 WordRead(
                     id=word.id,
@@ -92,5 +132,5 @@ class WordService:
         return results
 
     @staticmethod
-    def delete_word(db: Session, word_id: int) -> bool:
-        return crud_delete_word(db, word_id)
+    def delete_word(db: Session, word_id: int, user_id: int | None = None) -> bool:
+        return crud_delete_word(db, word_id, user_id=user_id)

@@ -9,6 +9,23 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     DATABASE_URL: str = "sqlite:///./lang_learn.db"
 
+    # LLM Settings (Nous Portal / OpenAI-compatible / Gemini Flash 3.7)
+    NOUS_API_KEY: str | None = None
+    OPENAI_API_KEY: str | None = None
+    LLM_API_KEY: str | None = None
+    LLM_BASE_URL: str = "https://inference-api.nousresearch.com/v1"
+    LLM_MODEL: str = "google/gemini-3.7-flash"
+
+    # Logging Settings
+    LOG_DIR: str = "logs"
+    LOG_LEVEL: str = "INFO"
+    LOG_BACKUP_DAYS: int = 7
+    LOG_FILE_NAME: str = "app.log"
+
+    @property
+    def effective_llm_api_key(self) -> str:
+        return self.NOUS_API_KEY or self.LLM_API_KEY or self.OPENAI_API_KEY or ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

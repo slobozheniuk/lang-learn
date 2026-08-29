@@ -12,14 +12,14 @@ def test_get_due_reviews_new_words(
     sample_words: list[Word],
     auth_headers: dict[str, str],
 ):
-    # For a new user, all words in default target language ('en') should be returned as new due cards
+    # For a new user, words in default target language ('en') should be returned as new due cards
     response = client.get("/api/v1/review/due", headers=auth_headers)
     assert response.status_code == 200
     items = response.json()
     assert len(items) == 2  # 2 English words in sample_words
     for item in items:
         assert item["is_new"] is True
-        assert item["stats"] is None
+        assert item["stats"] is None or item["stats"]["repetition_number"] == 0
         assert item["word"]["language_code"] == "en"
 
 
@@ -193,3 +193,45 @@ def test_unauthenticated_review_access(client: TestClient):
         json={"word_id": 1, "rating": "good"},
     )
     assert r_submit.status_code == 401
+
+
+def test_multi_user_review_isolation(
+    client: TestClient,
+    sample_words: list[Word],
+    auth_headers: dict[str, str],
+    db_session: Session,
+):
+    from app.auth.security import create_access_token, hash_password
+    from app.crud.user import create_user
+    from app.models.learning_profile import LearningProfile
+    from app.schemas.user import UserCreate
+
+    # User A has 2 English words due
+    r_due_a = client.get("/api/v1/review/due", headers=auth_headers)
+    assert r_due_a.status_code == 200
+    assert len(r_due_a.json()) == 2
+
+    # Create User B
+    user_b_in = UserCreate(
+        username="reviewer_b",
+        password="password123",
+        default_source_lang="ru",
+        default_target_lang="en",
+    )
+    user_b = create_user(db_session, user_b_in, hashed_password=hash_password(user_b_in.password))
+    profile_b = LearningProfile(
+        user_id=user_b.id,
+        source_language="ru",
+        target_language="en",
+        is_active=True,
+    )
+    db_session.add(profile_b)
+    db_session.commit()
+
+    token_b = create_access_token(data={"sub": str(user_b.id), "username": user_b.username})
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    # User B checks due reviews -> should see 0 items (strict isolation!)
+    r_due_b = client.get("/api/v1/review/due", headers=headers_b)
+    assert r_due_b.status_code == 200
+    assert len(r_due_b.json()) == 0

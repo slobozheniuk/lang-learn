@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -8,6 +9,8 @@ from app.schemas.review import DueWordItem, ReviewResultResponse, ReviewSubmissi
 from app.schemas.word import UserWordStatsRead, WordRead
 from app.srs.engine import SM2Engine, SRSEngine
 from app.srs.models import CardState, parse_rating
+
+logger = logging.getLogger("app.services.review")
 
 
 class ReviewService:
@@ -33,6 +36,7 @@ class ReviewService:
         results: list[DueWordItem] = []
         for word, stats in due_items:
             stats_read = UserWordStatsRead.model_validate(stats) if stats else None
+            is_new_card = stats is None or getattr(stats, "repetition_number", 0) == 0 or getattr(stats, "last_reviewed_at", None) is None
             word_read = WordRead(
                 id=word.id,
                 language_code=word.language_code,
@@ -51,9 +55,12 @@ class ReviewService:
                 DueWordItem(
                     word=word_read,
                     stats=stats_read,
-                    is_new=(stats is None),
+                    is_new=is_new_card,
                 )
             )
+        logger.info(
+            f"Retrieved due reviews: user_id={user_id}, target_lang='{target_lang}', count={len(results)}"
+        )
         return results
 
     def submit_review(
@@ -65,6 +72,7 @@ class ReviewService:
     ) -> ReviewResultResponse:
         word = get_word_by_id(db, submission.word_id)
         if not word:
+            logger.warning(f"Review submission failed: word id={submission.word_id} not found.")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Word with id {submission.word_id} not found",
@@ -73,6 +81,9 @@ class ReviewService:
         try:
             score = parse_rating(submission.rating)
         except (ValueError, TypeError) as e:
+            logger.warning(
+                f"Review submission invalid rating: user_id={user_id}, word_id={submission.word_id}, rating='{submission.rating}', error={e}"
+            )
             raise HTTPException(
                 status_code=422,
                 detail=str(e),
@@ -103,6 +114,13 @@ class ReviewService:
             user_id=user_id,
             word_id=word.id,
             card_state=review_result.state,
+        )
+
+        logger.info(
+            f"Review processed: user_id={user_id}, word_id={word.id} ('{word.text}'), "
+            f"rating='{submission.rating}' (score={score}) | "
+            f"prev: (rep={current_state.repetition_number}, interval={current_state.interval_days:.1f}d, EF={current_state.ease_factor:.2f}) -> "
+            f"new: (rep={updated_stats.repetition_number}, interval={updated_stats.interval_days:.1f}d, EF={updated_stats.ease_factor:.2f}, next_review={updated_stats.next_review_at})"
         )
 
         return ReviewResultResponse(

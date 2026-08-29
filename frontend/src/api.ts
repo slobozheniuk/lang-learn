@@ -1,4 +1,4 @@
-import { AuthResponse, DueReviewItem, Language, RegisterResponse, User, Word } from './types';
+import { AuthResponse, DueReviewItem, Language, RegisterResponse, User, Word, LearningProfile } from './types';
 
 let currentToken: string | null = typeof localStorage !== 'undefined' ? localStorage.getItem('ll_token') : null;
 
@@ -84,13 +84,29 @@ export async function loginUser(body: { username_or_email: string; password: str
 
 export async function registerUser(body: {
   username: string;
-  email: string;
+  email?: string;
   password: string;
+  native_language?: string;
+  target_language?: string;
   default_source_lang?: string;
   default_target_lang?: string;
 }): Promise<RegisterResponse> {
   return api<RegisterResponse>('/api/v1/auth/register', {
     method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateUserSettings(body: {
+  native_language?: string;
+  target_language?: string;
+  default_source_lang?: string;
+  default_target_lang?: string;
+  username?: string;
+  email?: string;
+}): Promise<User> {
+  return api<User>('/api/v1/auth/me', {
+    method: 'PATCH',
     body: JSON.stringify(body),
   });
 }
@@ -113,8 +129,9 @@ export async function fetchWords(
   return api<Word[]>(`/api/v1/words/?${params.toString()}`);
 }
 
-export async function fetchDueReviews(): Promise<DueReviewItem[]> {
-  return api<DueReviewItem[]>('/api/v1/review/due');
+export async function fetchDueReviews(targetLang?: string): Promise<DueReviewItem[]> {
+  const params = targetLang ? `?target_lang=${encodeURIComponent(targetLang)}` : '';
+  return api<DueReviewItem[]>(`/api/v1/review/due${params}`);
 }
 
 export async function createWord(body: {
@@ -131,9 +148,71 @@ export async function createWord(body: {
   });
 }
 
+export async function submitText(body: {
+  text: string;
+  source_lang?: string;
+  target_lang?: string;
+  wait?: boolean;
+}): Promise<any> {
+  return api('/api/v1/words/submit-text', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchLessons(sourceLang?: string, targetLang?: string): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (sourceLang) params.set('source_lang', sourceLang);
+  if (targetLang) params.set('target_lang', targetLang);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return api<any[]>(`/api/v1/lessons/${query}`);
+}
+
+export async function fetchLesson(lessonId: number): Promise<any> {
+  return api<any>(`/api/v1/lessons/${lessonId}`);
+}
+
+export async function fetchJob(jobId: string): Promise<any> {
+  return api(`/api/v1/jobs/${jobId}`);
+}
+
 export async function deleteWord(wordId: number): Promise<void> {
   return api<void>(`/api/v1/words/${wordId}`, {
     method: 'DELETE',
+  });
+}
+
+export async function deleteLesson(lessonId: number): Promise<void> {
+  return api<void>(`/api/v1/lessons/${lessonId}`, {
+    method: 'DELETE',
+  });
+}
+
+
+export async function generateQuizLesson(body: {
+  text?: string;
+  word_ids?: number[];
+  title?: string;
+  source_lang?: string;
+  target_lang?: string;
+}): Promise<any> {
+  return api('/api/v1/lessons/generate-quiz', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function completeLesson(
+  lessonId: number,
+  body: {
+    is_completed?: boolean;
+    score?: number;
+    total?: number;
+  } = { is_completed: true }
+): Promise<any> {
+  return api(`/api/v1/lessons/${lessonId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 
@@ -146,3 +225,24 @@ export async function submitReviewRating(wordId: number, rating: string): Promis
     }),
   });
 }
+
+export async function fetchProfiles(): Promise<LearningProfile[]> {
+  return api<LearningProfile[]>('/api/v1/profiles/');
+}
+
+export async function createProfile(body: {
+  source_language: string;
+  target_language: string;
+}): Promise<LearningProfile> {
+  return api<LearningProfile>('/api/v1/profiles/', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function switchProfile(profileId: number): Promise<LearningProfile> {
+  return api<LearningProfile>(`/api/v1/profiles/${profileId}/switch`, {
+    method: 'POST',
+  });
+}
+

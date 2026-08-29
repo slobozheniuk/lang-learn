@@ -1,10 +1,23 @@
 export interface User {
   id: number;
   username: string;
-  email: string;
+  email?: string;
+  native_language?: string;
+  target_language?: string;
   default_source_lang?: string;
   default_target_lang?: string;
   is_active?: boolean;
+}
+
+export interface LearningProfile {
+  id: number;
+  user_id: number;
+  source_language: string;
+  target_language: string;
+  is_active: boolean;
+  is_current?: boolean;
+  created_at: string;
+  updated_at?: string | null;
 }
 
 export interface Language {
@@ -74,14 +87,66 @@ export interface DueReviewItem {
   is_new?: boolean;
 }
 
-export type PageView = 'lessons' | 'flashcards' | 'wordlist';
+export type PageView = 'lessons' | 'flashcards' | 'wordlist' | 'settings';
+
+export interface QuizQuestion {
+  id?: number;
+  question: string;
+  options: string[];
+  correct_index?: number;
+  correct_option_index?: number;
+  correct_answer?: string;
+  explanation?: string | null;
+  target_word?: string | null;
+}
+
+export interface QuizData {
+  title?: string;
+  questions: QuizQuestion[];
+}
 
 export interface Lesson {
   id: number;
-  number: number;
+  number?: number;
   title: string;
   words: Word[];
-  totalWords: number;
-  targetCount: number;
-  isComplete: boolean;
+  totalWords?: number;
+  targetCount?: number;
+  isComplete?: boolean;
+  is_completed?: boolean;
+  input_type?: string;
+  quiz_data?: QuizData | any;
+  status?: string;
+  raw_input?: string;
+  source_lang?: string;
+  target_lang?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Job {
+  id: string;
+  user_id: number;
+  type: string;
+  status: string;
+  input_text: string;
+  source_lang: string;
+  target_lang: string;
+  lesson_id?: number | null;
+  result_json?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TextSubmissionResponse {
+  job_id: string;
+  status: string;
+  is_lesson: boolean;
+  is_multi_sentence?: boolean;
+  sentence_count?: number;
+  can_create_lesson?: boolean;
+  lesson?: Lesson | null;
+  words: Word[];
+  error_message?: string | null;
 }

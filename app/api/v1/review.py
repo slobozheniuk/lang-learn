@@ -22,7 +22,8 @@ def get_due_reviews(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[DueWordItem]:
-    lang = target_lang or current_user.default_target_lang
+    active_profile = current_user.get_active_profile()
+    lang = target_lang or (active_profile.target_language if active_profile else None) or current_user.default_target_lang
     return review_service.get_due_reviews(
         db=db,
         user_id=current_user.id,

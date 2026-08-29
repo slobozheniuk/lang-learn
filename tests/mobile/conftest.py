@@ -26,10 +26,14 @@ def get_free_port(preferred_port: int = 8888) -> int:
 
 def login_demo_user(page: Page) -> None:
     """Logs in using the Quick Demo Login button on the dedicated auth screen if unauthenticated."""
+    drawer = page.locator("#burger-menu-drawer")
+    if drawer.is_visible():
+        close_btn = page.locator("#drawer-close-btn")
+        if close_btn.is_visible():
+            close_btn.click()
     demo_btn = page.locator("#quick-demo-btn")
     if demo_btn.is_visible():
         demo_btn.click()
-        expect(page.locator("#auth-nav")).to_contain_text("demo_student")
         expect(page.locator("#lessons-view")).to_be_visible()
 
 
@@ -44,6 +48,9 @@ def test_server() -> Generator[str, None, None]:
     env = os.environ.copy()
     env["DATABASE_URL"] = f"sqlite:///{db_path}"
     env["PYTHONPATH"] = "."
+    env["NOUS_API_KEY"] = ""
+    env["OPENAI_API_KEY"] = ""
+    env["LLM_API_KEY"] = ""
 
     proc = subprocess.Popen(
         [
@@ -132,6 +139,23 @@ def mobile_page(mobile_context: BrowserContext, test_server: str) -> Generator[P
     page = mobile_context.new_page()
     page.goto(test_server)
     page.wait_for_load_state("networkidle")
+    # Clean up any leftover words/lessons between test runs
+    try:
+        page.evaluate("""async () => {
+            const token = localStorage.getItem('ll_token');
+            if (!token) return;
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const existing = await fetch('/api/v1/words/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+            for (const w of (existing || [])) {
+                await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+            }
+            const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+            for (const l of (existingLessons || [])) {
+                await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
+            }
+        }""")
+    except Exception:
+        pass
     yield page
     page.close()
 

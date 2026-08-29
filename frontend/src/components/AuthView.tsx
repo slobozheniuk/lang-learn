@@ -8,15 +8,15 @@ export interface AuthViewProps {
   loginIdentifier: string;
   loginPassword: string;
   regUsername: string;
-  regEmail: string;
   regPassword: string;
+  regNativeLang: string;
   regTargetLang: string;
   onTabChange: (tab: 'login' | 'register') => void;
   onLoginIdentifierChange: (val: string) => void;
   onLoginPasswordChange: (val: string) => void;
   onRegUsernameChange: (val: string) => void;
-  onRegEmailChange: (val: string) => void;
   onRegPasswordChange: (val: string) => void;
+  onRegNativeLangChange: (val: string) => void;
   onRegTargetLangChange: (val: string) => void;
   onLoginSubmit: (e: React.FormEvent) => void;
   onRegisterSubmit: (e: React.FormEvent) => void;
@@ -30,15 +30,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
   loginIdentifier,
   loginPassword,
   regUsername,
-  regEmail,
   regPassword,
+  regNativeLang,
   regTargetLang,
   onTabChange,
   onLoginIdentifierChange,
   onLoginPasswordChange,
   onRegUsernameChange,
-  onRegEmailChange,
   onRegPasswordChange,
+  onRegNativeLangChange,
   onRegTargetLangChange,
   onLoginSubmit,
   onRegisterSubmit,
@@ -149,21 +149,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="reg-email">
-                Email
-              </label>
-              <input
-                type="email"
-                id="reg-email"
-                className="input-field"
-                placeholder="student@example.com"
-                required
-                autoComplete="email"
-                value={regEmail}
-                onChange={(e) => onRegEmailChange(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
               <label className="form-label" htmlFor="reg-password">
                 Password
               </label>
@@ -180,8 +165,26 @@ export const AuthView: React.FC<AuthViewProps> = ({
               />
             </div>
             <div className="form-group">
+              <label className="form-label" htmlFor="reg-native-lang">
+                Native language
+              </label>
+              <select
+                id="reg-native-lang"
+                className="lang-select"
+                value={regNativeLang}
+                onChange={(e) => onRegNativeLangChange(e.target.value)}
+              >
+                {languages.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name + ' (' + lang.code.toUpperCase() + ')'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
               <label className="form-label" htmlFor="reg-target-lang">
-                Target Learning Language
+                Learning language
               </label>
               <select
                 id="reg-target-lang"

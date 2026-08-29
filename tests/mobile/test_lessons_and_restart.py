@@ -60,6 +60,17 @@ def test_lesson_cards_chunking_and_progress(mobile_page: Page):
     # Log in
     login_demo_user(page)
 
+    # Clean existing words
+    page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        if (!token) return;
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const existing = await fetch('/api/v1/words/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+        for (const w of (existing || [])) {
+            await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+        }
+    }""")
+
     # Seed 3 words
     page.evaluate("""async () => {
         const token = localStorage.getItem('ll_token');
@@ -293,3 +304,135 @@ def test_flashcards_restart_deck_button_on_completion(mobile_page: Page):
     expect(page.locator("#flashcard")).to_be_visible()
     expect(page.locator("#card-word")).to_be_visible()
     expect(page.locator("#empty-state")).not_to_be_visible()
+
+
+def test_lesson_three_dot_menu_and_delete_lesson(mobile_page: Page):
+    """Test Lesson Three-Dot Menu & Lesson Deletion:
+    - Click three-dot menu button (⋮) on a lesson card.
+    - Dropdown menu opens with 'Delete' option.
+    - Clicking 3-dots button does not navigate into lesson detail view.
+    - Clicking 'Delete' deletes the lesson and updates the UI optimistically.
+    """
+    page = mobile_page
+
+    # Log in
+    login_demo_user(page)
+
+    # Clean existing lessons and words
+    page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        if (!token) return;
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const existing = await fetch('/api/v1/words/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+        for (const w of (existing || [])) {
+            await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+        }
+        const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+        for (const l of (existingLessons || [])) {
+            await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
+        }
+    }""")
+
+    # Create 3 words to generate Lesson 1
+    page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+        for (let i = 1; i <= 3; i++) {
+            await fetch('/api/v1/words/', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ text: `lesson_del_word_${i}`, translation: `перевод_дел_${i}`, language_code: 'en' })
+            });
+        }
+    }""")
+
+    page.evaluate("() => window.loadWordlist()")
+    page.wait_for_timeout(300)
+
+    # Verify Lesson 1 is present on Lessons view
+    card = page.locator("#lesson-card-1")
+    expect(card).to_be_visible()
+
+    # Find three-dots menu button on lesson card
+    dots_btn = card.locator(".btn-lesson-dots-menu")
+    expect(dots_btn).to_be_visible()
+    dots_btn.click()
+
+    # Verify lesson detail view did NOT open
+    expect(page.locator("#lesson-detail-view")).not_to_be_visible()
+
+    # Verify dropdown menu is visible and contains Delete button with 🗑️ icon
+    dropdown = card.locator(".lesson-dropdown-menu")
+    expect(dropdown).to_be_visible()
+    del_btn = card.locator(".dropdown-item-delete")
+    expect(del_btn).to_be_visible()
+    expect(del_btn).to_contain_text("Delete")
+
+    # Click Delete
+    del_btn.click()
+    page.wait_for_timeout(300)
+
+    # Verify Lesson 1 is removed from DOM and empty state is shown
+    expect(page.locator("#lesson-card-1")).to_have_count(0)
+    expect(page.locator("#lessons-empty")).to_be_visible()
+
+
+def test_lesson_three_dot_menu_flip_up_and_outside_click(mobile_page: Page):
+    """Test Lesson Three-Dot Menu Flip-Up & Click Outside:
+    - On a lesson card located in the bottom half of the viewport, clicking the three-dot button
+      dynamically flips the dropdown menu upwards (.lesson-dropdown-up / .open-up).
+    - Elevated z-index is applied.
+    - Clicking outside (e.g. on app header) closes the dropdown cleanly.
+    """
+    page = mobile_page
+
+    # Log in
+    login_demo_user(page)
+
+    # Seed 4 lessons (20 words) so cards fill the screen
+    page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+        for (let i = 1; i <= 20; i++) {
+            await fetch('/api/v1/words/', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ text: `flip_lesson_word_${i}`, translation: `перевод_флип_${i}`, language_code: 'en' })
+            });
+        }
+    }""")
+
+    page.evaluate("() => window.loadWordlist()")
+    page.wait_for_timeout(300)
+
+    # Pick a card near bottom (e.g. Lesson 3 or 4)
+    card = page.locator("#lesson-card-3")
+    expect(card).to_be_visible()
+
+    dots_btn = card.locator(".btn-lesson-dots-menu")
+    expect(dots_btn).to_be_visible()
+    dots_btn.click()
+
+    dropdown = card.locator(".lesson-dropdown-menu")
+    expect(dropdown).to_be_visible()
+
+    card_box = card.bounding_box()
+    assert card_box is not None
+    viewport_height = page.viewport_size["height"]
+
+    if card_box["y"] > viewport_height / 2 or (viewport_height - (card_box["y"] + card_box["height"])) < 160:
+        expect(dropdown).to_have_class(re.compile(r"(lesson-dropdown-up|word-dropdown-up|open-up|is-up)"))
+
+    # Verify elevated z-index
+    has_elevated_zindex = card.evaluate("""el => {
+        const style = window.getComputedStyle(el);
+        const wrapper = el.querySelector('.lesson-actions-wrapper');
+        const wrapperZ = wrapper ? parseInt(window.getComputedStyle(wrapper).zIndex || '0', 10) : 0;
+        return parseInt(style.zIndex || '0', 10) >= 100 || wrapperZ >= 100;
+    }""")
+    assert has_elevated_zindex, "Active lesson card or actions wrapper should have elevated z-index"
+
+    # Click outside on header to close menu
+    page.locator(".app-header").click()
+    expect(dropdown).not_to_be_visible()
+

@@ -241,11 +241,28 @@ def test_wordlist_three_dot_menu_and_delete_word(mobile_page: Page):
     # Log in
     login_demo_user(page)
 
-    # Create a word specifically to delete via bottom dock
+    # Clean existing words
+    page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        if (!token) return;
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const existing = await fetch('/api/v1/words/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+        for (const w of (existing || [])) {
+            await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+        }
+    }""")
+
+    # Create a word specifically to delete
     word_to_delete = "unique_word_to_delete"
-    page.locator("#quick-word-input").fill(f"{word_to_delete} - на_удаление")
-    page.locator("#btn-quick-send").click()
-    page.wait_for_timeout(300)
+    page.evaluate(f"""async () => {{
+        const token = localStorage.getItem('ll_token');
+        const headers = {{ 'Content-Type': 'application/json', 'Authorization': `Bearer ${{token}}` }};
+        await fetch('/api/v1/words/', {{
+            method: 'POST',
+            headers,
+            body: JSON.stringify({{ text: '{word_to_delete}', translation: 'на_удаление', language_code: 'en' }})
+        }});
+    }}""")
 
     # Navigate to Wordlist
     page.locator("#burger-menu-btn").click()
