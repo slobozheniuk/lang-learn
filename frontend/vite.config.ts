@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const backendPort = process.env.VITE_BACKEND_PORT || process.env.BACKEND_PORT || '8000';
+const backendUrl = process.env.VITE_BACKEND_URL || `http://127.0.0.1:${backendPort}`;
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -21,8 +24,12 @@ export default defineConfig({
     },
   },
   server: {
+    port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      '/api': {
+        target: backendUrl,
+        changeOrigin: true,
+      },
     },
   },
 });

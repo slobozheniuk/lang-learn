@@ -52,6 +52,9 @@ def test_server() -> Generator[str, None, None]:
     env["OPENAI_API_KEY"] = ""
     env["LLM_API_KEY"] = ""
 
+    server_log_path = os.path.join(temp_dir.name, "test_server.log")
+    server_log = open(server_log_path, "w+", encoding="utf-8")
+
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -66,8 +69,8 @@ def test_server() -> Generator[str, None, None]:
             "warning",
         ],
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=server_log,
+        stderr=server_log,
     )
 
     # Wait for server to become responsive
@@ -83,10 +86,16 @@ def test_server() -> Generator[str, None, None]:
 
     if not started:
         proc.terminate()
-        stdout, stderr = proc.communicate(timeout=5)
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        server_log.seek(0)
+        log_content = server_log.read()
+        server_log.close()
         temp_dir.cleanup()
         raise RuntimeError(
-            f"Test server failed to start on {server_url}. Stderr: {stderr.decode(errors='replace')}"
+            f"Test server failed to start on {server_url}. Server output: {log_content}"
         )
 
     yield server_url
@@ -98,6 +107,7 @@ def test_server() -> Generator[str, None, None]:
     except Exception:
         proc.kill()
     finally:
+        server_log.close()
         temp_dir.cleanup()
 
 

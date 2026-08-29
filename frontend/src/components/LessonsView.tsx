@@ -12,8 +12,8 @@ interface LessonsViewProps {
 }
 
 export function chunkWordsIntoLessons(
-  _words: Word[] = [],
-  _wordsPerChunk = 5,
+  words: Word[] = [],
+  wordsPerChunk = 5,
   backendLessons: Lesson[] = []
 ): Lesson[] {
   const lessons: Lesson[] = [];
@@ -26,7 +26,7 @@ export function chunkWordsIntoLessons(
         ...bl,
         id: bl.id || (1000 + num),
         number: num,
-        title: bl.title,
+        title: bl.title || `Lesson ${num}`,
         words: bl.words || [],
         totalWords: bl.words ? bl.words.length : 0,
         targetCount: Math.max(5, bl.words ? bl.words.length : 0),
@@ -37,6 +37,27 @@ export function chunkWordsIntoLessons(
         status: bl.status,
       });
     });
+  }
+
+  // Chunk raw vocabulary words into bite-sized 5-word lessons
+  if (words && words.length > 0) {
+    const sorted = [...words].sort((a, b) => a.id - b.id);
+    const totalChunks = Math.ceil(sorted.length / wordsPerChunk);
+    const baseOffset = lessons.length;
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = sorted.slice(i * wordsPerChunk, (i + 1) * wordsPerChunk);
+      const lessonNumber = baseOffset + i + 1;
+      lessons.push({
+        id: lessonNumber,
+        number: lessonNumber,
+        title: `Lesson ${lessonNumber}`,
+        words: chunk,
+        totalWords: chunk.length,
+        targetCount: wordsPerChunk,
+        isComplete: chunk.length === wordsPerChunk,
+        is_completed: false,
+      });
+    }
   }
 
   return lessons;

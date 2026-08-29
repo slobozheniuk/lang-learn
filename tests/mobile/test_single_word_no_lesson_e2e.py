@@ -8,7 +8,7 @@ def test_single_word_submission_creates_no_lesson_e2e(mobile_page: Page):
     Playwright E2E Test:
     1. Register/log in demo user.
     2. Submit a single word via bottom dock.
-    3. Navigate to Lessons view -> verify 0 lessons (empty state shown).
+    3. Verify that no backend Lesson record was created (0 backend lessons).
     4. Navigate to Wordlist tab.
     5. Assert that the word IS present in the wordlist.
     """
@@ -53,22 +53,20 @@ def test_single_word_submission_creates_no_lesson_e2e(mobile_page: Page):
     expect(quick_input).to_have_value("")
     page.wait_for_timeout(500)
 
-    # 3. Navigate to Lessons view
-    if not page.locator("#lessons-view").is_visible():
-        page.locator("#burger-menu-btn").click()
-        page.locator("#nav-link-lessons").click()
-
-    expect(page.locator("#lessons-view")).to_be_visible()
-
-    # Assert that Lessons list is EMPTY (0 lessons, empty state visible, no lesson cards)
-    expect(page.locator(".lesson-card")).to_have_count(0)
-    expect(page.locator("#lessons-empty")).to_be_visible()
+    # 3. Verify no backend lesson was created
+    backend_lessons_count = page.evaluate("""async () => {
+        const token = localStorage.getItem('ll_token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const res = await fetch('/api/v1/lessons/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+        return res.length;
+    }""")
+    assert backend_lessons_count == 0
 
     # 4. Navigate to Wordlist tab
     page.locator("#burger-menu-btn").click()
     page.locator("#nav-link-wordlist").click()
     expect(page.locator("#wordlist-view")).to_be_visible()
 
-    # Assert that the word IS present in the wordlist
+    # 5. Assert that the word IS present in the wordlist
     card = page.locator(f".word-card:has-text('{test_word}')")
     expect(card).to_be_visible()

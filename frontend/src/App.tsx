@@ -261,7 +261,21 @@ export function App() {
       try {
         triggerHaptic('impact');
         if (lesson.id) {
-          await deleteLesson(lesson.id);
+          try {
+            await deleteLesson(lesson.id);
+          } catch {
+            // Local chunked lesson without backend record
+          }
+        }
+        if (lesson.words && lesson.words.length > 0) {
+          for (const w of lesson.words) {
+            try {
+              await deleteWord(w.id);
+            } catch {}
+          }
+          const wordIdsToDelete = new Set(lesson.words.map((w) => w.id));
+          setAllWords((prev) => prev.filter((w) => !wordIdsToDelete.has(w.id)));
+          setDeck((prev) => prev.filter((w) => !wordIdsToDelete.has(w.id)));
         }
         triggerHaptic('success');
 
@@ -273,12 +287,13 @@ export function App() {
 
         // Refresh lessons in background to ensure consistency
         loadLessons();
+        loadWordlist();
       } catch (err) {
         triggerHaptic('error');
         console.error('Failed to delete lesson:', err);
       }
     },
-    [loadLessons]
+    [loadLessons, loadWordlist]
   );
 
 
@@ -286,35 +301,26 @@ export function App() {
   const submitRating = useCallback(
     async (rating: 'again' | 'good') => {
       if (deckRef.current.length === 0) return;
-      const card = deckRef.current[currentIndexRef.current];
-      if (!card) return;
+      const currIdx = currentIndexRef.current;
+      const card = deckRef.current[currIdx] || deckRef.current[0];
+      if (!card || !tokenRef.current) return;
 
-      if (!tokenRef.current) {
-        return;
+      if (rating === 'again') {
+        triggerHaptic('error');
+      } else {
+        triggerHaptic('success');
       }
 
+      // Optimistically remove reviewed card from active deck
+      setDeck((prevDeck) => {
+        const nextDeck = prevDeck.filter((c) => c.id !== card.id);
+        return nextDeck;
+      });
+      setCurrentIndex(0);
+      setIsFlipped(false);
+
       try {
-        if (rating === 'again') {
-          triggerHaptic('error');
-        } else {
-          triggerHaptic('success');
-        }
-
         await submitReviewRating(card.id, rating);
-
-        setDeck((prevDeck) => {
-          const nextDeck = [...prevDeck];
-          nextDeck.splice(currentIndexRef.current, 1);
-          return nextDeck;
-        });
-        setCurrentIndex((prevIdx) => {
-          const newLen = deckRef.current.length - 1;
-          if (prevIdx >= newLen) {
-            return 0;
-          }
-          return prevIdx;
-        });
-        setIsFlipped(false);
         // Refresh words in background to update stats
         loadWordlist();
       } catch (err) {
@@ -330,7 +336,8 @@ export function App() {
     triggerHaptic('impact');
     setIsFlipped(false);
     try {
-      const words = (await fetchWords(100)) || [];
+      const targetLang = activeProfileRef.current?.target_language;
+      const words = (await fetchWords(100, 0, targetLang)) || [];
       setAllWords(words);
       if (words.length > 0) {
         const cards: FlashcardItem[] = words.map((w) => ({
