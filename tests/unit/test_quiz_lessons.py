@@ -242,6 +242,53 @@ def test_generate_quiz_endpoint(client: TestClient, db_session: Session):
     assert len(data_text["words"]) >= 1
 
 
+def test_chunk_text_and_prepare_lesson_endpoints(client: TestClient, db_session: Session):
+    """Test POST /api/v1/lessons/chunk-text and POST /api/v1/lessons/prepare."""
+    user = create_user(
+        db_session,
+        UserCreate(username="chunk_user", password="password123"),
+        hashed_password=hash_password("password123"),
+    )
+    token = create_access_token(data={"sub": str(user.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Chunk text endpoint (e.g. testing idiom 'get off' chunked as single entity)
+    text = "Please get off the bus and seek enlightenment."
+    chunk_resp = client.post(
+        "/api/v1/lessons/chunk-text",
+        headers=headers,
+        json={"text": text, "source_lang": "ru", "target_lang": "en"},
+    )
+    assert chunk_resp.status_code == 200
+    chunk_data = chunk_resp.json()
+    assert "chunks" in chunk_data
+    chunks = chunk_data["chunks"]
+    selectable_texts = [c["text"] for c in chunks if c["is_selectable"]]
+    assert "get off" in selectable_texts
+    assert "enlightenment" in selectable_texts
+
+    # 2. Prepare lesson with selected unknown words
+    prep_resp = client.post(
+        "/api/v1/lessons/prepare",
+        headers=headers,
+        json={
+            "text": text,
+            "selected_words": ["get off", "enlightenment"],
+            "source_lang": "ru",
+            "target_lang": "en",
+            "title": "Bus Lesson",
+        },
+    )
+    assert prep_resp.status_code == 201
+    prep_data = prep_resp.json()
+    assert prep_data["title"] == "Bus Lesson"
+    assert len(prep_data["words"]) == 2
+    word_texts = [w["text"] for w in prep_data["words"]]
+    assert "get off" in word_texts
+    assert "enlightenment" in word_texts
+    assert prep_data["quiz_data"] is not None
+
+
 @pytest.mark.asyncio
 async def test_scheduler_nightly_revision_check(db_session: Session):
     """Test nightly revision check generates a revision quiz only when conditions are met."""

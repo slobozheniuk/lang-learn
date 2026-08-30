@@ -2,6 +2,8 @@ import logging
 import re
 from typing import Any
 from app.services.llm.base import (
+    LLMChunkItem,
+    LLMChunkResponse,
     LLMProvider,
     LLMQuizQuestion,
     LLMQuizResponse,
@@ -102,14 +104,24 @@ class MockLLMProvider(LLMProvider):
                 items=items,
             )
 
-        # 2. Tokenize raw text by words
-        # Clean punctuation except apostrophes
-        tokens = re.findall(r"\b[\w'-]+\b", cleaned)
-        if not tokens:
-            tokens = [cleaned]
+        # 2. Tokenize raw text by lines or words (preserving multi-word lines or phrases)
+        # Check if text is a phrase in idioms or single word or line
+        lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+        if len(lines) > 1:
+            candidates = lines
+        elif " " in cleaned and cleaned.lower() in [
+            "get off", "get on", "pick up", "look after", "give up", "run out of",
+            "take care of", "in front of", "as well as", "at first", "by the way",
+            "on time", "in time", "right now", "so far", "wake up", "turn on", "turn off"
+        ]:
+            candidates = [cleaned]
+        else:
+            candidates = re.findall(r"\b[\w'-]+\b", cleaned)
+            if not candidates:
+                candidates = [cleaned]
 
         seen_words = set()
-        for token in tokens:
+        for token in candidates:
             token_clean = token.strip()
             if not token_clean or token_clean.lower() in seen_words:
                 continue
@@ -157,13 +169,66 @@ class MockLLMProvider(LLMProvider):
                         )
                     )
 
-        title = f"Lesson: {tokens[0]}" if len(tokens) > 0 else "Extracted Vocabulary"
-        if len(tokens) > 3:
-            title = f"Lesson: {' '.join(tokens[:3])}..."
+        title = f"Lesson: {candidates[0]}" if len(candidates) > 0 else "Extracted Vocabulary"
+        if len(candidates) > 3:
+            title = f"Lesson: {' '.join(candidates[:3])}..."
 
         return LLMTranslationResponse(
             title=title,
             items=items,
+        )
+
+    async def chunk_text(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+    ) -> LLMChunkResponse:
+        """Chunk text preserving idioms/phrases as single entities."""
+        cleaned = text.strip()
+        if not cleaned:
+            return LLMChunkResponse(title="Text Review", chunks=[])
+
+        # Common idioms / multi-word expressions to chunk as single entities
+        idioms = [
+            "get off", "get on", "pick up", "look after", "give up", "run out of",
+            "take care of", "in front of", "as well as", "at first", "by the way",
+            "on time", "in time", "right now", "so far", "wake up", "turn on", "turn off"
+        ]
+        
+        # Sort idioms by length descending to match longest phrase first
+        idioms.sort(key=len, reverse=True)
+
+        # Regex matching idioms, words (including hyphens/apostrophes), whitespace, or punctuation
+        idiom_patterns = [re.escape(i) for i in idioms]
+        pattern = re.compile(
+            r"(" + "|".join(idiom_patterns) + r"|[\w'-]+|[^\w\s]+|\s+)",
+            re.IGNORECASE
+        )
+
+        chunks: list[LLMChunkItem] = []
+        for match in pattern.finditer(cleaned):
+            token = match.group(0)
+            if not token:
+                continue
+            is_word_or_idiom = bool(re.search(r"\w", token))
+            is_selectable = is_word_or_idiom
+            chunks.append(
+                LLMChunkItem(
+                    text=token,
+                    is_selectable=is_selectable,
+                    lemma=token.lower().strip() if is_selectable else None,
+                )
+            )
+
+        title = "Text Review"
+        first_words = [c.text for c in chunks if c.is_selectable]
+        if first_words:
+            title = f"Review: {' '.join(first_words[:3])}..."
+
+        return LLMChunkResponse(
+            title=title,
+            chunks=chunks,
         )
 
     async def generate_quiz(

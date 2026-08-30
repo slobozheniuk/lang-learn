@@ -7,6 +7,8 @@ import httpx
 from pydantic import ValidationError
 
 from app.services.llm.base import (
+    LLMChunkItem,
+    LLMChunkResponse,
     LLMProvider,
     LLMQuizQuestion,
     LLMQuizResponse,
@@ -80,6 +82,33 @@ class OpenAILikeProvider(LLMProvider):
             f"3. Provide a concise, descriptive 'title' summarizing the lesson or vocabulary theme.\n\n"
             f"Output MUST be strict JSON in this format:\n"
             f'{{"title": "Lesson title", "items": [{{"source_text": "...", "target_text": "...", "pos": "...", "phonetic": "...", "lemma": "...", "context_phrase": "..."}}]}}\n'
+            f"Return ONLY valid JSON."
+        )
+
+    @staticmethod
+    def build_chunk_system_prompt(source_lang: str, target_lang: str) -> str:
+        tgt_label = get_language_display(target_lang)
+        return (
+            f"You are an expert computational linguist and language tutor for students learning {tgt_label}.\n"
+            f"Your task is to chunk the input text into interactive segment tokens for a language learning review page.\n\n"
+            f"Chunking Guidelines:\n"
+            f"1. Break the text into sequential tokens that, when concatenated verbatim, reconstruct the exact original text.\n"
+            f"2. Multi-word idioms, phrasal verbs, collocations, or common phrases (e.g. 'get off', 'pick up', 'look after', 'take care of', 'give up', 'as well as') MUST be grouped together as a SINGLE chunk token with is_selectable=true.\n"
+            f"3. Single meaningful words (e.g. 'enlightenment', 'apple', 'running') MUST each be a SINGLE chunk token with is_selectable=true.\n"
+            f"4. Whitespace, punctuation marks, and symbols MUST have is_selectable=false.\n"
+            f"5. Provide a concise title for the text passage.\n\n"
+            f"Output MUST be strict JSON in this format:\n"
+            f'{{\n'
+            f'  "title": "Passage Title",\n'
+            f'  "chunks": [\n'
+            f'    {{"text": "When", "is_selectable": true, "lemma": "when"}},\n'
+            f'    {{"text": " ", "is_selectable": false}},\n'
+            f'    {{"text": "you", "is_selectable": true, "lemma": "you"}},\n'
+            f'    {{"text": " ", "is_selectable": false}},\n'
+            f'    {{"text": "get off", "is_selectable": true, "lemma": "get off"}},\n'
+            f'    {{"text": " the bus.", "is_selectable": false}}\n'
+            f'  ]\n'
+            f'}}\n'
             f"Return ONLY valid JSON."
         )
 
@@ -250,6 +279,66 @@ class OpenAILikeProvider(LLMProvider):
         )
         return parsed_response
 
+    async def chunk_text(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+    ) -> LLMChunkResponse:
+        system_prompt = self.build_chunk_system_prompt(source_lang=source_lang, target_lang=target_lang)
+        user_content = f"Input Text to chunk:\n{text.strip()}"
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        start_time = time.perf_counter()
+        logger.info(
+            f"External LLM API Request [chunk_text]: model='{self.model}', text_length={len(text)}"
+        )
+
+        raw_content = ""
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            try:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                raw_content = data["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                if payload.get("response_format"):
+                    payload.pop("response_format", None)
+                    resp = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    raw_content = data["choices"][0]["message"]["content"]
+                else:
+                    raise
+
+        parsed_chunk = self._parse_and_validate_chunk(raw_content, text)
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(
+            f"LLM chunking completed: {len(parsed_chunk.chunks)} chunks, duration={duration_ms:.2f}ms"
+        )
+        return parsed_chunk
+
     async def generate_quiz(
         self,
         words: list[dict[str, Any]],
@@ -404,4 +493,28 @@ class OpenAILikeProvider(LLMProvider):
         except ValidationError:
             if isinstance(parsed_json, list):
                 return LLMQuizResponse.model_validate({"title": "Generated Quiz", "questions": parsed_json})
+            raise
+
+    def _parse_and_validate_chunk(self, raw_content: str, original_text: str) -> LLMChunkResponse:
+        cleaned = raw_content.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\n?```$", "", cleaned)
+            cleaned = cleaned.strip()
+
+        try:
+            parsed_json = json.loads(cleaned)
+        except json.JSONDecodeError as err:
+            logger.warning(f"Failed to decode Chunk JSON from LLM: {err}. Raw content: {raw_content[:200]}")
+            match = re.search(r"\{[\s\S]*\}", cleaned)
+            if match:
+                parsed_json = json.loads(match.group(0))
+            else:
+                raise ValueError(f"LLM returned invalid non-JSON chunk output: {raw_content[:200]}") from err
+
+        try:
+            return LLMChunkResponse.model_validate(parsed_json)
+        except ValidationError:
+            if isinstance(parsed_json, list):
+                return LLMChunkResponse.model_validate({"title": "Text Review", "chunks": parsed_json})
             raise

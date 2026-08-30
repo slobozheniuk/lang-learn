@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FlashcardItem, Language, LearningProfile, Lesson, PageView, User, Word } from './types';
+import { FlashcardItem, Language, LearningProfile, Lesson, PageView, User, Word, ChunkItem } from './types';
 import {
   setApiToken,
   fetchMe,
@@ -16,6 +16,8 @@ import {
   fetchLessons,
   generateQuizLesson,
   fetchProfiles,
+  chunkText,
+  prepareLesson,
 } from './api';
 import {
   initTelegram,
@@ -31,6 +33,7 @@ import { WordlistView } from './components/WordlistView';
 import { BottomDock } from './components/BottomDock';
 import { AuthView } from './components/AuthView';
 import { SettingsView } from './components/SettingsView';
+import { TextReviewModal } from './components/TextReviewModal';
 
 export function App() {
   // Navigation & View State
@@ -80,6 +83,15 @@ export function App() {
     words: Word[];
   } | null>(null);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState<boolean>(false);
+
+  // Text Review & Chunking Flow State
+  const [textReviewState, setTextReviewState] = useState<{
+    rawText: string;
+    title?: string;
+    chunks: ChunkItem[];
+    isLoading: boolean;
+  } | null>(null);
+  const [isPreparingLesson, setIsPreparingLesson] = useState<boolean>(false);
 
   const isAuthenticated = Boolean(token && user);
 
@@ -553,6 +565,84 @@ export function App() {
     }
   };
 
+  // Start Text Review Flow (Chunking) from Multi-sentence Prompt
+  const handleStartReviewFromPrompt = async () => {
+    if (!multiSentencePrompt) return;
+    const rawText = multiSentencePrompt.text;
+    const currentProfile = activeProfileRef.current || activeProfile;
+    const source_lang = currentProfile?.source_language || (user && (user.native_language || user.default_source_lang)) || 'ru';
+    const target_lang = currentProfile?.target_language || (user && (user.target_language || user.default_target_lang)) || 'en';
+
+    setMultiSentencePrompt(null);
+    setTextReviewState({
+      rawText,
+      chunks: [],
+      isLoading: true,
+    });
+
+    try {
+      const res = await chunkText({
+        text: rawText,
+        source_lang,
+        target_lang,
+      });
+      setTextReviewState({
+        rawText,
+        title: res.title || 'Review Text',
+        chunks: res.chunks || [],
+        isLoading: false,
+      });
+    } catch (e) {
+      console.warn('Failed to chunk text with LLM:', e);
+      // Fallback: simple tokenization
+      const fallbackTokens = rawText.split(/(\s+|[^\w\s]+)/).filter(Boolean);
+      const chunks: ChunkItem[] = fallbackTokens.map((t) => ({
+        text: t,
+        is_selectable: /\w/.test(t),
+        lemma: t.toLowerCase(),
+      }));
+      setTextReviewState({
+        rawText,
+        title: 'Review Text',
+        chunks,
+        isLoading: false,
+      });
+    }
+  };
+
+  // Prepare Lesson from Highlighted Words in Text Review Modal
+  const handlePrepareLessonFromReview = async (selectedWords: string[]) => {
+    if (!textReviewState) return;
+    setIsPreparingLesson(true);
+    try {
+      const currentProfile = activeProfileRef.current || activeProfile;
+      const source_lang = currentProfile?.source_language || (user && (user.native_language || user.default_source_lang)) || 'ru';
+      const target_lang = currentProfile?.target_language || (user && (user.target_language || user.default_target_lang)) || 'en';
+
+      const newLesson = await prepareLesson({
+        text: textReviewState.rawText,
+        selected_words: selectedWords,
+        title: textReviewState.title,
+        source_lang,
+        target_lang,
+      });
+
+      triggerHaptic('success');
+      setTextReviewState(null);
+      await loadLessons();
+      await loadWordlist();
+      if (newLesson) {
+        setActiveLesson(newLesson);
+        setActivePage('lessons');
+      }
+    } catch (err) {
+      triggerHaptic('error');
+      console.error('Failed to prepare lesson from review:', err);
+    } finally {
+      setIsPreparingLesson(false);
+    }
+  };
+
   // Generate Quiz Lesson from Multi-sentence Prompt
   const handleGenerateQuizFromPrompt = async () => {
     if (!multiSentencePrompt) return;
@@ -880,20 +970,27 @@ export function App() {
                   </button>
                 </div>
                 <p className="modal-body-text">
-                  Do you want to create a lesson from this text?
+                  Do you want to review text and select unknown words, or generate a quiz lesson immediately?
                 </p>
                 <div className="modal-actions">
                   <button
-                    id="btn-generate-quiz-lesson"
+                    id="btn-review-text-lesson"
                     className="btn btn-primary btn-full"
+                    onClick={handleStartReviewFromPrompt}
+                  >
+                    📖 Review Text & Select Words
+                  </button>
+                  <button
+                    id="btn-generate-quiz-lesson"
+                    className="btn btn-outline btn-full"
                     disabled={isGeneratingQuiz}
                     onClick={handleGenerateQuizFromPrompt}
                   >
-                    {isGeneratingQuiz ? '⏳ Generating Quiz with AI...' : '🎯 Generate Quiz Lesson'}
+                    {isGeneratingQuiz ? '⏳ Generating Quiz with AI...' : '🎯 Fast Quiz Lesson'}
                   </button>
                   <button
                     id="btn-dismiss-quiz-prompt"
-                    className="btn btn-outline btn-full"
+                    className="btn btn-subtle btn-full"
                     disabled={isGeneratingQuiz}
                     onClick={() => setMultiSentencePrompt(null)}
                   >
@@ -902,6 +999,19 @@ export function App() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Interactive Text Review & Word Selection Modal */}
+          {textReviewState && (
+            <TextReviewModal
+              title={textReviewState.title}
+              rawText={textReviewState.rawText}
+              chunks={textReviewState.chunks}
+              isLoadingChunks={textReviewState.isLoading}
+              isPreparingLesson={isPreparingLesson}
+              onPrepareLesson={handlePrepareLessonFromReview}
+              onClose={() => setTextReviewState(null)}
+            />
           )}
         </>
       )}

@@ -35,6 +35,31 @@ class QuizData(BaseModel):
     questions: list[QuizQuestion] = Field(default_factory=list)
 
 
+class ChunkItem(BaseModel):
+    text: str = Field(..., description="The chunk token, word, idiom, punctuation, or whitespace segment")
+    is_selectable: bool = Field(default=True, description="Whether this chunk represents a selectable word or phrase")
+    lemma: str | None = Field(default=None, description="Base lemma or normalized text of the chunk")
+
+
+class LessonChunkRequest(BaseModel):
+    text: str = Field(..., description="Raw text to be chunked into interactive tokens")
+    source_lang: str | None = Field(default=None, max_length=10)
+    target_lang: str | None = Field(default=None, max_length=10)
+
+
+class LessonChunkResponse(BaseModel):
+    title: str | None = None
+    chunks: list[ChunkItem] = Field(default_factory=list)
+
+
+class LessonPrepareRequest(BaseModel):
+    text: str | None = Field(default=None, description="Original input text")
+    selected_words: list[str] = Field(..., description="Selected unknown words or phrases from the review")
+    title: str | None = Field(default=None, description="Optional lesson title")
+    source_lang: str | None = Field(default=None, max_length=10)
+    target_lang: str | None = Field(default=None, max_length=10)
+
+
 class LessonBase(BaseModel):
     source_lang: str = Field(..., max_length=10)
     target_lang: str = Field(..., max_length=10)

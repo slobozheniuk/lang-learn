@@ -20,6 +20,20 @@ class LLMTranslationResponse(BaseModel):
     )
 
 
+class LLMChunkItem(BaseModel):
+    text: str = Field(..., description="The chunk token, word, idiom, punctuation, or whitespace segment")
+    is_selectable: bool = Field(default=True, description="Whether this chunk represents a selectable word or phrase")
+    lemma: str | None = Field(default=None, description="Base lemma or normalized text of the selectable chunk")
+
+
+class LLMChunkResponse(BaseModel):
+    title: str | None = Field(default=None, description="Descriptive title for the text snippet")
+    chunks: list[LLMChunkItem] = Field(
+        default_factory=list,
+        description="Structured list of contiguous chunks that reconstruct the full text",
+    )
+
+
 class LLMQuizQuestion(BaseModel):
     id: int | None = Field(default=None, description="Optional question index or identifier")
     question: str = Field(..., description="The multiple-choice quiz question prompt")
@@ -65,6 +79,16 @@ class LLMProvider(ABC):
         target_lang: str,
     ) -> LLMTranslationResponse:
         """Extract vocabulary items with translations, POS, phonetic, and context."""
+        pass
+
+    @abstractmethod
+    async def chunk_text(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+    ) -> LLMChunkResponse:
+        """Segment text into interactive chunk tokens (idioms, phrases, individual words, punctuation/spaces)."""
         pass
 
     @abstractmethod

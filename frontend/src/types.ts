@@ -139,6 +139,17 @@ export interface Job {
   updated_at: string;
 }
 
+export interface ChunkItem {
+  text: string;
+  is_selectable: boolean;
+  lemma?: string | null;
+}
+
+export interface ChunkResponse {
+  title?: string | null;
+  chunks: ChunkItem[];
+}
+
 export interface TextSubmissionResponse {
   job_id: string;
   status: string;

@@ -1,4 +1,4 @@
-import { AuthResponse, DueReviewItem, Language, RegisterResponse, User, Word, LearningProfile } from './types';
+import { AuthResponse, DueReviewItem, Language, RegisterResponse, User, Word, LearningProfile, ChunkResponse } from './types';
 
 let currentToken: string | null = typeof localStorage !== 'undefined' ? localStorage.getItem('ll_token') : null;
 
@@ -188,6 +188,30 @@ export async function deleteLesson(lessonId: number): Promise<void> {
   });
 }
 
+
+export async function chunkText(body: {
+  text: string;
+  source_lang?: string;
+  target_lang?: string;
+}): Promise<ChunkResponse> {
+  return api('/api/v1/lessons/chunk-text', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function prepareLesson(body: {
+  text?: string;
+  selected_words: string[];
+  title?: string;
+  source_lang?: string;
+  target_lang?: string;
+}): Promise<any> {
+  return api('/api/v1/lessons/prepare', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
 
 export async function generateQuizLesson(body: {
   text?: string;

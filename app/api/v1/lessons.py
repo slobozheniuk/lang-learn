@@ -14,7 +14,16 @@ from app.crud.word import get_or_create_word, get_word_by_id
 from app.database import get_db
 from app.models.user import User
 from app.schemas.job import TextSubmissionRequest, TextSubmissionResponse
-from app.schemas.lesson import LessonCreate, LessonCompleteRequest, LessonQuizGenerateRequest, LessonRead
+from app.schemas.lesson import (
+    ChunkItem,
+    LessonChunkRequest,
+    LessonChunkResponse,
+    LessonCreate,
+    LessonCompleteRequest,
+    LessonPrepareRequest,
+    LessonQuizGenerateRequest,
+    LessonRead,
+)
 from app.schemas.word import WordRead
 from app.services.job_queue import count_sentences, job_queue_service
 from app.services.word_service import WordService
@@ -118,6 +127,189 @@ def get_lesson(
         created_at=lesson.created_at,
         updated_at=lesson.updated_at,
         words=words,
+    )
+
+
+@router.post(
+    "/chunk-text",
+    response_model=LessonChunkResponse,
+    summary="Chunk input text into interactive selectable tokens",
+)
+async def chunk_text_endpoint(
+    request: LessonChunkRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> LessonChunkResponse:
+    if not request.text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Text cannot be empty.",
+        )
+
+    active_profile = current_user.get_active_profile()
+    source_lang = (
+        request.source_lang
+        or (active_profile.source_language if active_profile else None)
+        or getattr(current_user, "native_language", None)
+        or getattr(current_user, "default_source_lang", None)
+        or "ru"
+    )
+    target_lang = (
+        request.target_lang
+        or (active_profile.target_language if active_profile else None)
+        or getattr(current_user, "target_language", None)
+        or getattr(current_user, "default_target_lang", None)
+        or "en"
+    )
+
+    chunk_res = await job_queue_service.llm.chunk_text(
+        text=request.text,
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )
+
+    chunks = [
+        ChunkItem(
+            text=c.text,
+            is_selectable=c.is_selectable,
+            lemma=c.lemma,
+        )
+        for c in chunk_res.chunks
+    ]
+
+    return LessonChunkResponse(
+        title=chunk_res.title,
+        chunks=chunks,
+    )
+
+
+@router.post(
+    "/prepare",
+    response_model=LessonRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Prepare lesson from selected unknown words/phrases after text review",
+)
+async def prepare_lesson_endpoint(
+    request: LessonPrepareRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> LessonRead:
+    if not request.selected_words:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one word or phrase must be selected.",
+        )
+
+    active_profile = current_user.get_active_profile()
+    source_lang = (
+        request.source_lang
+        or (active_profile.source_language if active_profile else None)
+        or getattr(current_user, "native_language", None)
+        or getattr(current_user, "default_source_lang", None)
+        or "ru"
+    )
+    target_lang = (
+        request.target_lang
+        or (active_profile.target_language if active_profile else None)
+        or getattr(current_user, "target_language", None)
+        or getattr(current_user, "default_target_lang", None)
+        or "en"
+    )
+
+    created_words = []
+    # Translate and extract each selected word or phrase
+    for sel_word in request.selected_words:
+        extracted = await job_queue_service.llm.extract_vocabulary(
+            text=sel_word,
+            source_lang=source_lang,
+            target_lang=target_lang,
+        )
+        items = extracted.items
+        if not items:
+            items = [
+                WordRead(
+                    id=0,
+                    language_code=target_lang,
+                    text=sel_word,
+                    translation=sel_word,
+                )
+            ]
+        for item in items:
+            target_text = item.target_text if hasattr(item, "target_text") else item.text
+            source_text = item.source_text if hasattr(item, "source_text") else item.translation
+            pos = getattr(item, "pos", None)
+            phonetic = getattr(item, "phonetic", None)
+            lemma = getattr(item, "lemma", None)
+            context_phrase = getattr(item, "context_phrase", None)
+
+            target_word = get_or_create_word(
+                db,
+                language_code=target_lang,
+                text=target_text,
+                lemma=lemma,
+                pos=pos,
+                phonetic=phonetic,
+                translation=source_text,
+                context_phrase=context_phrase,
+            )
+            get_or_create_user_word_stats(db, user_id=current_user.id, word_id=target_word.id)
+            if target_word not in created_words:
+                created_words.append(target_word)
+
+    # Generate quiz lesson specifically from the selected words
+    words_data = [
+        {
+            "text": w.text,
+            "translation": w.translation,
+            "pos": w.pos,
+            "phonetic": w.phonetic,
+            "context_phrase": w.context_phrase,
+        }
+        for w in created_words
+    ]
+
+    quiz_response = await job_queue_service.llm.generate_quiz(
+        words=words_data,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        text=request.text,
+        title=request.title,
+    )
+
+    lesson_title = request.title or quiz_response.title or f"Lesson: {created_words[0].text if created_words else 'Vocabulary'}"
+    if len(lesson_title) > 250:
+        lesson_title = lesson_title[:250]
+
+    raw_input = request.text or ", ".join(w.text for w in created_words)
+    lesson_in = LessonCreate(
+        source_lang=source_lang,
+        target_lang=target_lang,
+        title=lesson_title,
+        raw_input=raw_input,
+        input_type="quiz",
+        quiz_data=quiz_response.model_dump(),
+        is_completed=False,
+    )
+    lesson = create_lesson(db, user_id=current_user.id, lesson_in=lesson_in, status="ready")
+
+    for idx, w in enumerate(created_words):
+        add_word_to_lesson(db, lesson_id=lesson.id, word_id=w.id, order_index=idx)
+
+    words_read = [WordService.to_read(w, user_id=current_user.id, db=db) for w in created_words]
+    return LessonRead(
+        id=lesson.id,
+        user_id=lesson.user_id,
+        source_lang=lesson.source_lang,
+        target_lang=lesson.target_lang,
+        title=lesson.title,
+        raw_input=lesson.raw_input,
+        input_type=lesson.input_type,
+        status=lesson.status,
+        is_completed=lesson.is_completed,
+        quiz_data=lesson.quiz_data,
+        created_at=lesson.created_at,
+        updated_at=lesson.updated_at,
+        words=words_read,
     )
 
 
