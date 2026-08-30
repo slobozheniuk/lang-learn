@@ -1,22 +1,30 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Lesson, QuizQuestion, Word } from '../types';
-import { completeLesson } from '../api';
+import { ChunkItem, Lesson, QuizQuestion, Word } from '../types';
+import { chunkText, completeLesson, prepareLesson } from '../api';
 import { pronounceWord, triggerHaptic } from '../utils/srs';
 
 interface LessonDetailViewProps {
   lesson: Lesson;
   onClose: () => void;
   onLessonCompleted?: (lessonId: number) => void;
+  onLessonPrepared?: (updatedLesson: Lesson) => void;
 }
 
 export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
   lesson,
   onClose,
   onLessonCompleted,
+  onLessonPrepared,
 }) => {
+  const [currentLesson, setCurrentLesson] = useState<Lesson>(lesson);
+
+  useEffect(() => {
+    setCurrentLesson(lesson);
+  }, [lesson]);
+
   const quizQuestions: QuizQuestion[] = useMemo(() => {
-    if (!lesson.quiz_data) return [];
-    let qData = lesson.quiz_data;
+    if (!currentLesson.quiz_data) return [];
+    let qData = currentLesson.quiz_data;
     if (typeof qData === 'string') {
       try {
         qData = JSON.parse(qData);
@@ -27,14 +35,65 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
     if (Array.isArray(qData)) return qData;
     if (qData && Array.isArray(qData.questions)) return qData.questions;
     return [];
-  }, [lesson.quiz_data]);
+  }, [currentLesson.quiz_data]);
 
   const hasQuiz = quizQuestions.length > 0;
+  const isReadingLesson = currentLesson.status === 'reading' || currentLesson.input_type === 'reading';
+  const hasRawText = Boolean(currentLesson.raw_input && currentLesson.raw_input.trim().length > 0);
+  const hasReading = Boolean(currentLesson.chunk_data || hasRawText || isReadingLesson);
 
-  // Study View Mode: default to quiz if available, otherwise flashcard
-  const [viewMode, setViewMode] = useState<'quiz' | 'flashcard' | 'list'>(
-    hasQuiz ? 'quiz' : 'flashcard'
-  );
+  // Study View Mode: default to reading if reading lesson, quiz if quiz exists, else flashcard
+  const [viewMode, setViewMode] = useState<'reading' | 'quiz' | 'flashcard' | 'list'>(() => {
+    if (isReadingLesson) return 'reading';
+    if (hasQuiz) return 'quiz';
+    if (hasReading && (!currentLesson.words || currentLesson.words.length === 0)) return 'reading';
+    return 'flashcard';
+  });
+
+  // Interactive Reading State
+  const [chunks, setChunks] = useState<ChunkItem[]>(() => {
+    if (currentLesson.chunk_data) {
+      let cData = currentLesson.chunk_data;
+      if (typeof cData === 'string') {
+        try {
+          cData = JSON.parse(cData);
+        } catch {
+          cData = null;
+        }
+      }
+      if (Array.isArray(cData)) return cData;
+      if (cData && Array.isArray(cData.chunks)) return cData.chunks;
+    }
+    return [];
+  });
+  const [isChunking, setIsChunking] = useState<boolean>(false);
+  const [selectedChunkIndices, setSelectedChunkIndices] = useState<Set<number>>(new Set());
+  const [isPreparing, setIsPreparing] = useState<boolean>(false);
+  const [prepareError, setPrepareError] = useState<string | null>(null);
+
+  // Load chunks if needed
+  useEffect(() => {
+    if (chunks.length > 0) return;
+    if (currentLesson.raw_input && currentLesson.raw_input.trim()) {
+      setIsChunking(true);
+      chunkText({
+        text: currentLesson.raw_input,
+        source_lang: currentLesson.source_lang,
+        target_lang: currentLesson.target_lang,
+      })
+        .then((res) => {
+          if (res && Array.isArray(res.chunks)) {
+            setChunks(res.chunks);
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to chunk text:', err);
+        })
+        .finally(() => {
+          setIsChunking(false);
+        });
+    }
+  }, [currentLesson.raw_input, currentLesson.source_lang, currentLesson.target_lang, chunks.length]);
 
   // Flashcard Mode State
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -47,12 +106,72 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
   const [quizScore, setQuizScore] = useState<number>(0);
   const [isQuizCompleted, setIsQuizCompleted] = useState<boolean>(false);
 
-  const words = lesson.words || [];
+  const words = currentLesson.words || [];
   const currentWord: Word | null =
     words.length > 0 && currentIndex < words.length ? words[currentIndex] : null;
 
   const currentQuizQuestion: QuizQuestion | null =
     hasQuiz && quizIndex < quizQuestions.length ? quizQuestions[quizIndex] : null;
+
+  // Toggle chunk selection
+  const toggleChunk = useCallback((chunk: ChunkItem, index: number) => {
+    const isSelectable = Boolean(chunk.is_selectable ?? chunk.is_word ?? true);
+    if (!isSelectable) return;
+
+    triggerHaptic('impact');
+    setSelectedChunkIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
+
+  // Prepare Lesson from Selected Chunks
+  const handlePrepareLesson = useCallback(async () => {
+    if (selectedChunkIndices.size === 0 || isPreparing) return;
+
+    setIsPreparing(true);
+    setPrepareError(null);
+    triggerHaptic('impact');
+
+    const selectedList = Array.from(selectedChunkIndices)
+      .sort((a, b) => a - b)
+      .map((idx) => chunks[idx])
+      .filter(Boolean);
+    const selectedWords = selectedList.map((c) => c.text);
+
+    try {
+      const updated = await prepareLesson(currentLesson.id, {
+        selected_chunks: selectedList,
+        selected_words: selectedWords,
+        text: currentLesson.raw_input,
+        title: currentLesson.title,
+        source_lang: currentLesson.source_lang,
+        target_lang: currentLesson.target_lang,
+      });
+
+      triggerHaptic('success');
+      setCurrentLesson(updated);
+      if (onLessonPrepared) {
+        onLessonPrepared(updated);
+      }
+      setViewMode('quiz');
+      setQuizIndex(0);
+      setSelectedAnswers({});
+      setQuizScore(0);
+      setIsQuizCompleted(false);
+    } catch (err: any) {
+      triggerHaptic('error');
+      setPrepareError(err?.message || 'Failed to prepare lesson from selected words');
+      console.error('Failed to prepare lesson:', err);
+    } finally {
+      setIsPreparing(false);
+    }
+  }, [selectedChunkIndices, isPreparing, chunks, currentLesson, onLessonPrepared]);
 
   // Flashcard handlers
   const handleFlip = useCallback(() => {
@@ -247,16 +366,26 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
             ✕
           </button>
           <div className="lesson-detail-titles">
-            <h2 className="lesson-detail-title">{lesson.title}</h2>
+            <h2 className="lesson-detail-title">{currentLesson.title}</h2>
             <span className="lesson-detail-meta">
-              {hasQuiz ? `${quizQuestions.length} quiz questions • ` : ''}
-              {words.length} {words.length === 1 ? 'word' : 'words'}
+              {viewMode === 'reading' && '📖 Reading & Selection Mode'}
+              {viewMode === 'quiz' && `${quizQuestions.length} quiz questions • `}
+              {viewMode !== 'reading' && `${words.length} ${words.length === 1 ? 'word' : 'words'}`}
             </span>
           </div>
         </div>
 
         {/* Study Mode Selector */}
         <div className="lesson-mode-toggle">
+          {hasReading && (
+            <button
+              id="btn-mode-reading"
+              className={`lesson-mode-btn ${viewMode === 'reading' ? 'active' : ''}`}
+              onClick={() => setViewMode('reading')}
+            >
+              📖 Read
+            </button>
+          )}
           {hasQuiz && (
             <button
               id="btn-mode-quiz"
@@ -282,6 +411,93 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ======================================================================
+          INTERACTIVE READING & CHUNK SELECTION MODE
+         ====================================================================== */}
+      {viewMode === 'reading' && (
+        <div id="reading-study-container" className="reading-study-container">
+          <div className="reading-card-header">
+            <div className="reading-header-icon">📖</div>
+            <div className="reading-header-text">
+              <h3 className="reading-header-title">Interactive Reading</h3>
+              <p className="reading-header-subtitle">
+                Tap words or phrases you want to practice to highlight them.
+              </p>
+            </div>
+          </div>
+
+          {prepareError && (
+            <div className="reading-error-banner">
+              ⚠️ {prepareError}
+            </div>
+          )}
+
+          {isChunking ? (
+            <div id="reading-loading" className="reading-loading-state">
+              <span className="reading-spinner">⏳</span>
+              <span>Analyzing and chunking text with AI...</span>
+            </div>
+          ) : (
+            <div id="interactive-reading-card" className="interactive-reading-card">
+              <div className="reading-text-flow" role="region" aria-label="Interactive reading text">
+                {chunks.map((chunk, idx) => {
+                  const isSelectable = Boolean(chunk.is_selectable ?? chunk.is_word ?? true);
+                  const isSelected = selectedChunkIndices.has(idx);
+
+                  if (!isSelectable) {
+                    return (
+                      <span key={idx} id={`chunk-${idx}`} className="reading-chunk-plain">
+                        {chunk.text}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <span
+                      key={idx}
+                      id={`chunk-${idx}`}
+                      role="button"
+                      tabIndex={0}
+                      className={`reading-chunk-chip ${isSelected ? 'chunk-highlighted is-selected selected' : ''}`}
+                      onClick={() => toggleChunk(chunk, idx)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleChunk(chunk, idx);
+                        }
+                      }}
+                      aria-pressed={isSelected}
+                      title={chunk.translation ? `${chunk.text} (${chunk.translation})` : chunk.text}
+                    >
+                      {chunk.text}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Floating/Sticky Action Bar */}
+          <div id="reading-action-bar" className="reading-action-bar">
+            <div className="reading-counter-badge">
+              <span id="selected-chunks-count" className="selected-chunks-count">
+                {selectedChunkIndices.size} {selectedChunkIndices.size === 1 ? 'word' : 'words'} selected
+              </span>
+            </div>
+            <button
+              id="btn-prepare-lesson"
+              className="btn btn-primary btn-full btn-prepare-lesson"
+              disabled={selectedChunkIndices.size === 0 || isPreparing}
+              onClick={handlePrepareLesson}
+            >
+              {isPreparing
+                ? '⏳ Preparing Lesson & Quiz...'
+                : `Prepare Lesson (${selectedChunkIndices.size} ${selectedChunkIndices.size === 1 ? 'word' : 'words'} selected)`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ======================================================================
           QUIZ STUDY MODE
@@ -568,7 +784,7 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
               <div className="empty-icon">🎉</div>
               <h3 className="empty-title">Lesson Completed!</h3>
               <p className="empty-desc">
-                Great job! You've reviewed all {words.length} words in {lesson.title}.
+                Great job! You've reviewed all {words.length} words in {currentLesson.title}.
               </p>
               <div className="lesson-completed-actions">
                 <button
@@ -588,6 +804,15 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
                     }}
                   >
                     🎯 Take Quiz
+                  </button>
+                )}
+                {hasReading && (
+                  <button
+                    id="btn-cards-to-reading"
+                    className="btn btn-outline"
+                    onClick={() => setViewMode('reading')}
+                  >
+                    📖 Read Text
                   </button>
                 )}
                 <button

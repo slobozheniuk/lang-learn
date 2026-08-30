@@ -51,6 +51,13 @@ def create_lesson(
         else:
             quiz_str = json.dumps(lesson_in.quiz_data)
 
+    chunk_str = None
+    if getattr(lesson_in, "chunk_data", None) is not None:
+        if isinstance(lesson_in.chunk_data, str):
+            chunk_str = lesson_in.chunk_data
+        else:
+            chunk_str = json.dumps(lesson_in.chunk_data)
+
     lesson = Lesson(
         user_id=user_id,
         source_lang=lesson_in.source_lang.lower().strip(),
@@ -60,6 +67,7 @@ def create_lesson(
         input_type=lesson_in.input_type.lower().strip(),
         status=status,
         quiz_data=quiz_str,
+        chunk_data=chunk_str,
         is_completed=lesson_in.is_completed,
     )
     db.add(lesson)

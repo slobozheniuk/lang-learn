@@ -7,6 +7,8 @@ import httpx
 from pydantic import ValidationError
 
 from app.services.llm.base import (
+    LLMChunkItem,
+    LLMChunkResponse,
     LLMProvider,
     LLMQuizQuestion,
     LLMQuizResponse,
@@ -80,6 +82,40 @@ class OpenAILikeProvider(LLMProvider):
             f"3. Provide a concise, descriptive 'title' summarizing the lesson or vocabulary theme.\n\n"
             f"Output MUST be strict JSON in this format:\n"
             f'{{"title": "Lesson title", "items": [{{"source_text": "...", "target_text": "...", "pos": "...", "phonetic": "...", "lemma": "...", "context_phrase": "..."}}]}}\n'
+            f"Return ONLY valid JSON."
+        )
+
+    @staticmethod
+    def build_chunk_system_prompt(source_lang: str, target_lang: str) -> str:
+        src_label = get_language_display(source_lang)
+        tgt_label = get_language_display(target_lang)
+
+        return (
+            f"You are an expert computational linguist and language teacher for students learning {tgt_label} "
+            f"(native language: {src_label}).\n"
+            f"Your task is to segment the input text into meaningful linguistic tokens/chunks for interactive reading.\n\n"
+            f"Chunking Guidelines:\n"
+            f"1. Phrasal verbs, idioms, multi-word expressions, and collocations MUST be grouped into a single chunk with 'is_selectable': true "
+            f"(e.g., 'get off', 'pick up', 'look after', 'take care of', 'in order to', 'as well as').\n"
+            f"2. Single vocabulary words MUST be single chunks with 'is_selectable': true (e.g., 'enlightenment', 'serendipity', 'house').\n"
+            f"3. Punctuation marks, standalone symbols, or spaces should have 'is_selectable': false.\n"
+            f"4. The text sequence must be faithfully preserved so that concatenating the chunk texts accurately reproduces the original text.\n"
+            f"5. For each selectable chunk, provide 'lemma', 'pos', and optionally a concise 'translation' in {src_label}.\n"
+            f"6. Provide a concise, descriptive 'title' summarizing the text.\n\n"
+            f"Output MUST be strict JSON in this format:\n"
+            f'{{\n'
+            f'  "title": "Text Title",\n'
+            f'  "chunks": [\n'
+            f'    {{"text": "Yesterday", "is_selectable": true, "lemma": "yesterday", "pos": "adverb", "translation": "вчера"}},\n'
+            f'    {{"text": ", ", "is_selectable": false}},\n'
+            f'    {{"text": "he decided to", "is_selectable": true, "lemma": "decide to", "pos": "phrase"}},\n'
+            f'    {{"text": " ", "is_selectable": false}},\n'
+            f'    {{"text": "get off", "is_selectable": true, "lemma": "get off", "pos": "phrase", "translation": "выйти"}},\n'
+            f'    {{"text": " ", "is_selectable": false}},\n'
+            f'    {{"text": "the train", "is_selectable": true, "lemma": "train", "pos": "noun"}},\n'
+            f'    {{"text": ".", "is_selectable": false}}\n'
+            f'  ]\n'
+            f'}}\n'
             f"Return ONLY valid JSON."
         )
 
@@ -404,4 +440,89 @@ class OpenAILikeProvider(LLMProvider):
         except ValidationError:
             if isinstance(parsed_json, list):
                 return LLMQuizResponse.model_validate({"title": "Generated Quiz", "questions": parsed_json})
+            raise
+
+    async def chunk_text(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+    ) -> LLMChunkResponse:
+        system_prompt = self.build_chunk_system_prompt(source_lang=source_lang, target_lang=target_lang)
+        user_content = f"Input Text to chunk:\n{text.strip()}"
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"},
+        }
+
+        start_time = time.perf_counter()
+        logger.info(
+            f"External LLM API Request [chunk_text]: model='{self.model}', base_url='{self.base_url}', "
+            f"pair='{source_lang}->{target_lang}', text_preview='{text[:40].strip()}...', length={len(text)}"
+        )
+
+        raw_content = ""
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            try:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                raw_content = data["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                if payload.get("response_format"):
+                    logger.warning(f"LLM json response_format unsupported by endpoint; retrying standard request: {e}")
+                    payload.pop("response_format", None)
+                    resp = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    raw_content = data["choices"][0]["message"]["content"]
+                else:
+                    raise
+
+        parsed_response = self._parse_and_validate_chunk(raw_content, text)
+        return parsed_response
+
+    def _parse_and_validate_chunk(self, raw_content: str, original_text: str) -> LLMChunkResponse:
+        cleaned = raw_content.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\n?```$", "", cleaned)
+            cleaned = cleaned.strip()
+
+        try:
+            parsed_json = json.loads(cleaned)
+        except json.JSONDecodeError as err:
+            logger.warning(f"Failed to decode Chunk JSON from LLM: {err}. Raw content: {raw_content[:200]}")
+            match = re.search(r"\{[\s\S]*\}", cleaned)
+            if match:
+                parsed_json = json.loads(match.group(0))
+            else:
+                raise ValueError(f"LLM returned invalid non-JSON output: {raw_content[:200]}") from err
+
+        if "raw_text" not in parsed_json:
+            parsed_json["raw_text"] = original_text
+
+        try:
+            return LLMChunkResponse.model_validate(parsed_json)
+        except ValidationError:
+            if isinstance(parsed_json, list):
+                return LLMChunkResponse.model_validate({"chunks": parsed_json, "raw_text": original_text})
             raise

@@ -45,6 +45,7 @@ class LessonBase(BaseModel):
 
 class LessonCreate(LessonBase):
     quiz_data: str | dict | list | None = None
+    chunk_data: str | dict | list | None = None
     is_completed: bool = False
 
 
@@ -52,6 +53,55 @@ class LessonQuizGenerateRequest(BaseModel):
     text: str | None = Field(default=None, description="Optional text context or multi-sentence passage")
     word_ids: list[int] | None = Field(default=None, description="Optional word IDs to generate quiz for")
     title: str | None = Field(default=None, description="Optional custom lesson title")
+    source_lang: str | None = Field(default=None, max_length=10)
+    target_lang: str | None = Field(default=None, max_length=10)
+
+
+class TextChunkRequest(BaseModel):
+    text: str = Field(..., min_length=1, description="Raw input text to segment into semantic chunks")
+    source_lang: str | None = Field(default=None, max_length=10)
+    target_lang: str | None = Field(default=None, max_length=10)
+    title: str | None = Field(default=None, max_length=255)
+    create_lesson: bool = Field(default=False, description="Whether to create a lesson in 'reading' status")
+
+
+class ChunkItemSchema(BaseModel):
+    id: int | str | None = None
+    text: str = Field(..., description="Chunk text or token")
+    is_selectable: bool = Field(default=True, description="Whether this chunk represents a selectable vocabulary token")
+    is_word: bool = Field(default=True, description="Alias for is_selectable")
+    lemma: str | None = None
+    pos: str | None = None
+    translation: str | None = None
+
+    @classmethod
+    def model_validate(cls, obj: Any, *args: Any, **kwargs: Any) -> "ChunkItemSchema":
+        if isinstance(obj, dict):
+            if "is_word" in obj and "is_selectable" not in obj:
+                obj["is_selectable"] = bool(obj["is_word"])
+            elif "is_selectable" in obj and "is_word" not in obj:
+                obj["is_word"] = bool(obj["is_selectable"])
+            elif "is_selectable" in obj and "is_word" in obj:
+                if not obj["is_selectable"]:
+                    obj["is_word"] = False
+                elif not obj["is_word"]:
+                    obj["is_selectable"] = False
+        return super().model_validate(obj, *args, **kwargs)
+
+
+class LessonChunkResponse(BaseModel):
+    title: str | None = None
+    chunks: list[ChunkItemSchema] = Field(default_factory=list)
+    raw_text: str | None = None
+    lesson_id: int | None = None
+
+
+class LessonPrepareRequest(BaseModel):
+    chunks: list[Any] | None = Field(default=None, description="Selected chunk objects or strings")
+    selected_chunks: list[Any] | None = Field(default=None, description="Selected chunk objects or tokens")
+    selected_words: list[str] | None = Field(default=None, description="Selected word/phrase strings")
+    text: str | None = Field(default=None, description="Raw context text if preparing without an existing lesson")
+    title: str | None = Field(default=None, max_length=255)
     source_lang: str | None = Field(default=None, max_length=10)
     target_lang: str | None = Field(default=None, max_length=10)
 
@@ -68,6 +118,7 @@ class LessonRead(LessonBase):
     status: str
     is_completed: bool = False
     quiz_data: Any | None = None
+    chunk_data: Any | None = None
     created_at: datetime
     updated_at: datetime
     words: list[WordRead] = Field(default_factory=list)
@@ -75,6 +126,16 @@ class LessonRead(LessonBase):
     @field_validator("quiz_data", mode="before")
     @classmethod
     def parse_quiz_json(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return v
+        return v
+
+    @field_validator("chunk_data", mode="before")
+    @classmethod
+    def parse_chunk_json(cls, v: Any) -> Any:
         if isinstance(v, str):
             try:
                 return json.loads(v)

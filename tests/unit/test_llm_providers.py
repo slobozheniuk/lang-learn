@@ -184,6 +184,70 @@ async def test_openai_provider_invalid_json_handling():
             await provider.extract_vocabulary("hello", "ru", "en")
 
 
+@pytest.mark.asyncio
+async def test_mock_llm_chunk_text_idioms_and_words():
+    provider = MockLLMProvider()
+    text = "Yesterday, he decided to get off the train and look forward to the meeting."
+    res = await provider.chunk_text(text, source_lang="ru", target_lang="en")
+
+    assert res.title is not None
+    assert res.raw_text == text
+    assert len(res.chunks) > 5
+
+    # Check text reconstruction
+    reconstructed = "".join(c.text for c in res.chunks)
+    assert reconstructed == text
+
+    # Verify idioms are single chunks
+    chunk_texts = [c.text for c in res.chunks]
+    assert "get off" in chunk_texts
+    assert "look forward to" in chunk_texts
+
+    # Verify selectable vs non-selectable
+    idiom_chunk = next(c for c in res.chunks if c.text == "get off")
+    assert idiom_chunk.is_selectable is True
+    assert idiom_chunk.is_word is True
+    assert idiom_chunk.pos == "phrase"
+
+    comma_chunk = next(c for c in res.chunks if c.text == ",")
+    assert comma_chunk.is_selectable is False
+    assert comma_chunk.is_word is False
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_chunk_text_success():
+    provider = OpenAILikeProvider(
+        api_key="test_api_key",
+        base_url="https://inference-api.nousresearch.com/v1",
+        model="google/gemini-3.7-flash",
+    )
+
+    fake_chunk_json = {
+        "title": "Train Journey",
+        "chunks": [
+            {"text": "He decided to", "is_selectable": True, "lemma": "decide to", "pos": "phrase"},
+            {"text": " ", "is_selectable": False},
+            {"text": "get off", "is_selectable": True, "lemma": "get off", "pos": "phrase", "translation": "выйти"},
+            {"text": " the train.", "is_selectable": True, "lemma": "train", "pos": "noun"},
+        ],
+    }
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "choices": [{"message": {"content": json.dumps(fake_chunk_json)}}]
+    }
+    mock_resp.raise_for_status.return_value = None
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        res = await provider.chunk_text("He decided to get off the train.", "ru", "en")
+        assert res.title == "Train Journey"
+        assert len(res.chunks) == 4
+        assert res.chunks[2].text == "get off"
+        assert res.chunks[2].is_selectable is True
+        assert res.chunks[2].is_word is True
+
+
 def test_llm_factory():
     mock_p = get_llm_provider(force_mock=True)
     assert isinstance(mock_p, MockLLMProvider)

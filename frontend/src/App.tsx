@@ -13,8 +13,8 @@ import {
   deleteLesson,
   submitReviewRating,
   submitText,
+  chunkText,
   fetchLessons,
-  generateQuizLesson,
   fetchProfiles,
 } from './api';
 import {
@@ -74,7 +74,8 @@ export function App() {
   const [regTargetLang, setRegTargetLang] = useState('en');
 
   const [quickInput, setQuickInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<number>(0);
+  const isSending = pendingRequests > 0;
   const [multiSentencePrompt, setMultiSentencePrompt] = useState<{
     text: string;
     words: Word[];
@@ -451,19 +452,28 @@ export function App() {
   }, [submitRating]);
 
   // Quick word form submit
-  const handleQuickWordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const raw = quickInput.trim();
-    if (!raw || !token) return;
+  const handleQuickWordSubmit = async (eOrText?: React.FormEvent | string) => {
+    let raw = '';
+    if (typeof eOrText === 'string') {
+      raw = eOrText.trim();
+    } else {
+      if (eOrText && typeof eOrText === 'object' && 'preventDefault' in eOrText) {
+        eOrText.preventDefault();
+      }
+      raw = quickInput.trim();
+    }
+    if (!raw || !tokenRef.current) return;
+
+    setQuickInput('');
+    setPendingRequests((prev) => prev + 1);
 
     const currentProfile = activeProfileRef.current || activeProfile;
-    const source_lang = currentProfile?.source_language || (user && (user.native_language || user.default_source_lang)) || 'ru';
+    const source_lang = currentProfile?.source_language || (userRef.current && (userRef.current.native_language || userRef.current.default_source_lang)) || 'ru';
     const language_code =
       currentProfile?.target_language ||
-      (user && (user.target_language || user.default_target_lang)) ||
+      (userRef.current && (userRef.current.target_language || userRef.current.default_target_lang)) ||
       (languages && languages.length ? languages[0].code : 'en');
 
-    setIsSending(true);
     try {
       const result = await submitText({
         text: raw,
@@ -473,7 +483,6 @@ export function App() {
       });
 
       triggerHaptic('success');
-      setQuickInput('');
 
       if (result.is_lesson && result.lesson) {
         await loadLessons();
@@ -525,7 +534,6 @@ export function App() {
         });
 
         triggerHaptic('success');
-        setQuickInput('');
 
         const newCard: FlashcardItem = {
           ...newWord,
@@ -549,11 +557,11 @@ export function App() {
         console.error('Failed to add word:', fallbackErr);
       }
     } finally {
-      setIsSending(false);
+      setPendingRequests((prev) => Math.max(0, prev - 1));
     }
   };
 
-  // Generate Quiz Lesson from Multi-sentence Prompt
+  // Start Interactive Reading Lesson from Multi-sentence Prompt
   const handleGenerateQuizFromPrompt = async () => {
     if (!multiSentencePrompt) return;
     setIsGeneratingQuiz(true);
@@ -561,23 +569,33 @@ export function App() {
       const currentProfile = activeProfileRef.current || activeProfile;
       const source_lang = currentProfile?.source_language || (user && (user.native_language || user.default_source_lang)) || 'ru';
       const target_lang = currentProfile?.target_language || (user && (user.target_language || user.default_target_lang)) || 'en';
-      const newLesson = await generateQuizLesson({
+      const chunkRes = await chunkText({
         text: multiSentencePrompt.text,
-        word_ids: multiSentencePrompt.words.map((w) => w.id),
         source_lang,
         target_lang,
+        create_lesson: true,
       });
       triggerHaptic('success');
       setMultiSentencePrompt(null);
       await loadLessons();
-      await loadWordlist();
-      if (newLesson) {
-        setActiveLesson(newLesson);
-        setActivePage('lessons');
-      }
+
+      const newLesson: Lesson = {
+        id: chunkRes.lesson_id || Date.now(),
+        title: chunkRes.title || 'Reading Lesson',
+        raw_input: multiSentencePrompt.text,
+        status: 'reading',
+        input_type: 'reading',
+        chunk_data: chunkRes,
+        words: [],
+        source_lang,
+        target_lang,
+      };
+
+      setActiveLesson(newLesson);
+      setActivePage('lessons');
     } catch (err) {
       triggerHaptic('error');
-      console.error('Failed to generate quiz lesson:', err);
+      console.error('Failed to create reading lesson from text:', err);
     } finally {
       setIsGeneratingQuiz(false);
     }
@@ -805,6 +823,16 @@ export function App() {
                 <LessonDetailView
                   lesson={activeLesson}
                   onClose={() => setActiveLesson(null)}
+                  onLessonCompleted={() => {
+                    loadLessons();
+                    loadWordlist();
+                  }}
+                  onLessonPrepared={(updatedLesson) => {
+                    setActiveLesson(updatedLesson);
+                    loadLessons();
+                    loadWordlist();
+                    loadDeck();
+                  }}
                 />
               ) : (
                 <LessonsView
@@ -865,8 +893,8 @@ export function App() {
 
           {/* Multi-sentence Quiz Lesson Generation Modal Prompt */}
           {multiSentencePrompt && (
-            <div id="multi-sentence-modal" className="modal-backdrop" role="dialog" aria-modal="true">
-              <div className="modal-card">
+            <div id="multi-sentence-modal" className="modal-backdrop is-open active show" role="dialog" aria-modal="true">
+              <div className="modal-dialog modal-card">
                 <div className="modal-header">
                   <div className="modal-icon">🎯</div>
                   <h3 className="modal-title">Create Lesson</h3>

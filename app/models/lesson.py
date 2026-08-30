@@ -24,6 +24,7 @@ class Lesson(Base, TimestampMixin):
     input_type: Mapped[str] = mapped_column(String(50), default="text", nullable=False)  # text, youtube, manual, revision
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)   # pending, processing, ready, completed, failed
     quiz_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON-encoded multiple-choice quiz questions
+    chunk_data: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON-encoded reading chunk tokens
     is_completed: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="lessons")

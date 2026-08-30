@@ -202,6 +202,38 @@ export async function generateQuizLesson(body: {
   });
 }
 
+export async function chunkText(body: {
+  text: string;
+  source_lang?: string;
+  target_lang?: string;
+  title?: string;
+  create_lesson?: boolean;
+}): Promise<any> {
+  return api('/api/v1/lessons/chunk-text', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function prepareLesson(
+  lessonId: number | string | null | undefined,
+  body: {
+    chunks?: any[];
+    selected_chunks?: any[];
+    selected_words?: string[];
+    text?: string;
+    title?: string;
+    source_lang?: string;
+    target_lang?: string;
+  }
+): Promise<any> {
+  const endpoint = lessonId ? `/api/v1/lessons/${lessonId}/prepare` : '/api/v1/lessons/prepare';
+  return api(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function completeLesson(
   lessonId: number,
   body: {

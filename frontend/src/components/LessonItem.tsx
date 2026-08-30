@@ -26,8 +26,9 @@ export const LessonItem: React.FC<LessonItemProps> = ({
       ((lesson.quiz_data.questions && lesson.quiz_data.questions.length > 0) ||
         Array.isArray(lesson.quiz_data))
   );
+  const isReading = lesson.status === 'reading' || lesson.input_type === 'reading';
   const isRevision = lesson.input_type === 'revision';
-  const icon = isRevision ? '🔄' : isQuiz ? '🎯' : '📚';
+  const icon = isRevision ? '🔄' : isQuiz ? '🎯' : isReading ? '📖' : '📚';
 
   // Check card position to dynamically determine if menu should open upwards
   useEffect(() => {
@@ -85,12 +86,16 @@ export const LessonItem: React.FC<LessonItemProps> = ({
               <span className="lesson-badge badge-revision">Nightly Revision</span>
             ) : isQuiz ? (
               <span className="lesson-badge badge-quiz">Quiz</span>
+            ) : isReading ? (
+              <span className="lesson-badge badge-reading">Reading</span>
             ) : null}
             <span
-              className={`lesson-badge ${lesson.is_completed ? 'badge-completed' : lesson.isComplete ? 'badge-ready' : 'badge-progress'}`}
+              className={`lesson-badge ${lesson.is_completed ? 'badge-completed' : lesson.isComplete || isReading ? 'badge-ready' : 'badge-progress'}`}
             >
               {lesson.is_completed
                 ? '✓ Completed'
+                : isReading
+                ? 'Reading'
                 : lesson.isComplete
                 ? `${lesson.words?.length || 5} words`
                 : `${lesson.totalWords || lesson.words?.length || 0} / 5 words`}
@@ -161,7 +166,7 @@ export const LessonItem: React.FC<LessonItemProps> = ({
           <div
             className="lesson-progress-fill"
             style={{
-              width: lesson.is_completed
+              width: lesson.is_completed || isReading
                 ? '100%'
                 : `${Math.min(100, ((lesson.totalWords || lesson.words?.length || 0) / (lesson.targetCount || 5)) * 100)}%`,
             }}
@@ -170,6 +175,8 @@ export const LessonItem: React.FC<LessonItemProps> = ({
         <span className="lesson-progress-text">
           {lesson.is_completed
             ? 'Completed ✓'
+            : isReading
+            ? 'Interactive reading & word selection'
             : isQuiz
             ? 'Interactive quiz ready'
             : lesson.isComplete
@@ -181,7 +188,7 @@ export const LessonItem: React.FC<LessonItemProps> = ({
       {/* Card Footer CTA */}
       <div className="lesson-card-footer">
         <span className="lesson-action-cta">
-          {isQuiz ? '▶ Start Quiz' : '▶ Practice Lesson'}
+          {isReading ? '▶ Read & Select' : isQuiz ? '▶ Start Quiz' : '▶ Practice Lesson'}
         </span>
         <span className="lesson-arrow">›</span>
       </div>

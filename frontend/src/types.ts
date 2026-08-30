@@ -105,6 +105,23 @@ export interface QuizData {
   questions: QuizQuestion[];
 }
 
+export interface ChunkItem {
+  id?: number | string;
+  text: string;
+  is_selectable?: boolean;
+  is_word?: boolean;
+  lemma?: string | null;
+  pos?: string | null;
+  translation?: string | null;
+}
+
+export interface ChunkResponse {
+  title?: string | null;
+  chunks: ChunkItem[];
+  raw_text?: string | null;
+  lesson_id?: number | null;
+}
+
 export interface Lesson {
   id: number;
   number?: number;
@@ -116,6 +133,7 @@ export interface Lesson {
   is_completed?: boolean;
   input_type?: string;
   quiz_data?: QuizData | any;
+  chunk_data?: ChunkResponse | ChunkItem[] | any;
   status?: string;
   raw_input?: string;
   source_lang?: string;

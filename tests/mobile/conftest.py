@@ -35,6 +35,19 @@ def login_demo_user(page: Page) -> None:
     if demo_btn.is_visible():
         demo_btn.click()
         expect(page.locator("#lessons-view")).to_be_visible()
+        page.evaluate("""async () => {
+            const token = localStorage.getItem('ll_token');
+            if (!token) return;
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const words = await fetch('/api/v1/words/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+            for (const w of (words || [])) {
+                await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+            }
+            const lessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then(r => r.json()).catch(() => []);
+            for (const l of (lessons || [])) {
+                await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
+            }
+        }""")
 
 
 @pytest.fixture(scope="session")

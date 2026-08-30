@@ -148,3 +148,120 @@ def test_delete_lesson_unauthenticated(
     # No auth header
     res = client.delete(f"/api/v1/lessons/{lesson.id}")
     assert res.status_code == 401
+
+
+def test_chunk_text_endpoint(client: TestClient, auth_headers: dict[str, str]):
+    text = "Yesterday I decided to wake up early and get off the train."
+    res = client.post(
+        "/api/v1/lessons/chunk-text",
+        headers=auth_headers,
+        json={"text": text, "source_lang": "ru", "target_lang": "en", "create_lesson": False},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "chunks" in data
+    assert len(data["chunks"]) > 0
+    assert data["lesson_id"] is None
+    assert data["raw_text"] == text
+
+    # Verify selectable chunks exist
+    selectable = [c for c in data["chunks"] if c.get("is_selectable")]
+    assert len(selectable) > 0
+
+
+def test_chunk_text_creates_reading_lesson(client: TestClient, auth_headers: dict[str, str]):
+    text = "I decided to give up sugar and look forward to healthy life."
+    res = client.post(
+        "/api/v1/lessons/chunk-text",
+        headers=auth_headers,
+        json={"text": text, "source_lang": "ru", "target_lang": "en", "create_lesson": True, "title": "Healthy Habits"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["lesson_id"] is not None
+    lesson_id = data["lesson_id"]
+
+    # Verify lesson is retrieved with status reading and chunk_data
+    res_l = client.get(f"/api/v1/lessons/{lesson_id}", headers=auth_headers)
+    assert res_l.status_code == 200
+    lesson_data = res_l.json()
+    assert lesson_data["status"] == "reading"
+    assert lesson_data["input_type"] == "reading"
+    assert lesson_data["chunk_data"] is not None
+    assert lesson_data["title"] == "Healthy Habits"
+
+
+def test_prepare_lesson_with_existing_lesson(
+    client: TestClient, db_session: Session, test_user: User, auth_headers: dict[str, str]
+):
+    # 1. Create a reading lesson
+    lesson_in = LessonCreate(
+        source_lang="ru",
+        target_lang="en",
+        title="Interactive Reading Test",
+        raw_input="I want to give up junk food and get off early.",
+        input_type="reading",
+        is_completed=False,
+    )
+    lesson = create_lesson(db_session, user_id=test_user.id, lesson_in=lesson_in, status="reading")
+
+    # 2. Select only 2 items: "give up" and "junk food"
+    res = client.post(
+        f"/api/v1/lessons/{lesson.id}/prepare",
+        headers=auth_headers,
+        json={
+            "selected_chunks": [
+                {"text": "give up", "lemma": "give up", "pos": "phrase"},
+                {"text": "junk food", "lemma": "junk food", "pos": "noun"},
+            ],
+            "source_lang": "ru",
+            "target_lang": "en",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["id"] == lesson.id
+    assert data["status"] == "ready"
+    assert data["input_type"] == "quiz"
+    assert data["quiz_data"] is not None
+
+    # Verify only the 2 selected words were extracted and added to lesson
+    words = data["words"]
+    word_texts = [w["text"].lower() for w in words]
+    assert "give up" in word_texts
+    assert "junk food" in word_texts
+    assert len(words) == 2
+
+
+def test_prepare_lesson_without_lesson_id(client: TestClient, auth_headers: dict[str, str]):
+    res = client.post(
+        "/api/v1/lessons/prepare",
+        headers=auth_headers,
+        json={
+            "selected_words": ["serendipity", "epiphany"],
+            "source_lang": "ru",
+            "target_lang": "en",
+            "title": "Rare Words Quiz",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["title"] == "Rare Words Quiz"
+    assert data["input_type"] == "quiz"
+    assert data["quiz_data"] is not None
+    assert len(data["words"]) == 2
+
+
+def test_prepare_lesson_empty_selection_validation(client: TestClient, auth_headers: dict[str, str]):
+    res = client.post(
+        "/api/v1/lessons/prepare",
+        headers=auth_headers,
+        json={
+            "selected_chunks": [],
+            "source_lang": "ru",
+            "target_lang": "en",
+        },
+    )
+    assert res.status_code == 400
+    assert "at least one word/chunk" in res.json()["detail"].lower()
+
