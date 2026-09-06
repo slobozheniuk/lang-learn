@@ -4,8 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class LearningProfileBase(BaseModel):
-    source_language: str = Field(default="ru", max_length=10)
-    target_language: str = Field(default="en", max_length=10)
+    source_language: str = Field(..., max_length=10)
+    target_language: str = Field(..., max_length=10)
 
     @model_validator(mode="before")
     @classmethod

@@ -19,8 +19,8 @@ class LearningProfile(Base, TimestampMixin):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    source_language: Mapped[str] = mapped_column(String(10), default="ru", nullable=False)
-    target_language: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
+    source_language: Mapped[str] = mapped_column(String(10), nullable=False)
+    target_language: Mapped[str] = mapped_column(String(10), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="profiles")

@@ -17,10 +17,6 @@ class User(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    native_language: Mapped[str] = mapped_column(String(10), default="ru", nullable=False)
-    target_language: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
-    default_source_lang: Mapped[str] = mapped_column(String(10), default="ru", nullable=False)
-    default_target_lang: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     def get_active_profile(self):

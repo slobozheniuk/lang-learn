@@ -108,14 +108,6 @@ def test_multi_user_word_isolation(
         default_target_lang="en",
     )
     user_b = create_user(db_session, user_b_in, hashed_password=hash_password(user_b_in.password))
-    profile_b = LearningProfile(
-        user_id=user_b.id,
-        source_language="ru",
-        target_language="en",
-        is_active=True,
-    )
-    db_session.add(profile_b)
-    db_session.commit()
 
     token_b = create_access_token(data={"sub": str(user_b.id), "username": user_b.username})
     headers_b = {"Authorization": f"Bearer {token_b}"}

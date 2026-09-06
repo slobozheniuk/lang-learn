@@ -244,8 +244,8 @@ class JobQueueService:
         db: Session,
         user_id: int,
         text: str,
-        source_lang: str = "ru",
-        target_lang: str = "en",
+        source_lang: str,
+        target_lang: str,
         wait: bool = True,
     ) -> tuple[Job, Lesson | None, list[Word]]:
         """Submit text for translation/lesson generation, queuing or running synchronously."""

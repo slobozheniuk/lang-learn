@@ -31,24 +31,13 @@ def ensure_db_schema_updated() -> None:
         result = conn.execute(text("PRAGMA table_info(users)"))
         cols = {row[1] for row in result.fetchall()}
         if cols:
-            if "native_language" not in cols:
-                logger.info("Applying schema migration: adding 'native_language' column to users table")
-                conn.execute(text("ALTER TABLE users ADD COLUMN native_language VARCHAR(10) DEFAULT 'ru' NOT NULL"))
-                conn.execute(text("UPDATE users SET native_language = default_source_lang WHERE default_source_lang IS NOT NULL"))
-            if "target_language" not in cols:
-                logger.info("Applying schema migration: adding 'target_language' column to users table")
-                conn.execute(text("ALTER TABLE users ADD COLUMN target_language VARCHAR(10) DEFAULT 'en' NOT NULL"))
-                conn.execute(text("UPDATE users SET target_language = default_target_lang WHERE default_target_lang IS NOT NULL"))
-            if "email" in cols:
-                logger.info("Applying schema migration: dropping 'email' column and index from users table")
-                try:
-                    conn.execute(text("DROP INDEX IF EXISTS ix_users_email"))
-                except Exception as e:
-                    logger.debug(f"Could not drop ix_users_email: {e}")
-                try:
-                    conn.execute(text("ALTER TABLE users DROP COLUMN email"))
-                except Exception as e:
-                    logger.warning(f"Could not drop email column directly: {e}")
+            for old_col in ["native_language", "target_language", "default_source_lang", "default_target_lang", "email"]:
+                if old_col in cols:
+                    try:
+                        logger.info(f"Applying schema migration: dropping '{old_col}' column from users table")
+                        conn.execute(text(f"ALTER TABLE users DROP COLUMN {old_col}"))
+                    except Exception as e:
+                        logger.warning(f"Could not drop {old_col} column: {e}")
             conn.commit()
 
         result_lessons = conn.execute(text("PRAGMA table_info(lessons)"))
@@ -73,8 +62,8 @@ def ensure_db_schema_updated() -> None:
                 CREATE TABLE IF NOT EXISTS learning_profiles (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    source_language VARCHAR(10) NOT NULL DEFAULT 'ru',
-                    target_language VARCHAR(10) NOT NULL DEFAULT 'en',
+                    source_language VARCHAR(10) NOT NULL,
+                    target_language VARCHAR(10) NOT NULL,
                     is_active BOOLEAN NOT NULL DEFAULT 1,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -87,7 +76,7 @@ def ensure_db_schema_updated() -> None:
         try:
             conn.execute(text("""
                 INSERT OR IGNORE INTO learning_profiles (user_id, source_language, target_language, is_active, created_at, updated_at)
-                SELECT id, COALESCE(native_language, default_source_lang, 'ru'), COALESCE(target_language, default_target_lang, 'en'), 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                SELECT id, 'ru', 'en', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 FROM users
                 WHERE id NOT IN (SELECT DISTINCT user_id FROM learning_profiles)
             """))

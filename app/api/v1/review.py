@@ -23,7 +23,7 @@ def get_due_reviews(
     current_user: User = Depends(get_current_user),
 ) -> list[DueWordItem]:
     active_profile = current_user.get_active_profile()
-    lang = target_lang or (active_profile.target_language if active_profile else None) or current_user.default_target_lang
+    lang = target_lang or (active_profile.target_language if active_profile else None)
     return review_service.get_due_reviews(
         db=db,
         user_id=current_user.id,

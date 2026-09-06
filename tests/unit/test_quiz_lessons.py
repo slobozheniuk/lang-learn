@@ -101,7 +101,7 @@ def test_lesson_model_quiz_data_column(db_session: Session):
     """Test Lesson table quiz_data column and schema parsing."""
     user = create_user(
         db_session,
-        UserCreate(username="quiz_user", password="password123"),
+        UserCreate(username="quiz_user", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
     quiz_payload = {
@@ -143,7 +143,7 @@ async def test_job_queue_disables_auto_lesson(db_session: Session):
     """Verify job_queue.py does not create lessons automatically and only stores words."""
     user = create_user(
         db_session,
-        UserCreate(username="no_auto_lesson", password="password123"),
+        UserCreate(username="no_auto_lesson", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
 
@@ -171,7 +171,7 @@ def test_submit_text_sentence_count_and_multi_sentence_flag(client: TestClient, 
     """Test submit-text endpoint returns sentence_count and is_multi_sentence correctly."""
     user = create_user(
         db_session,
-        UserCreate(username="sentence_test", password="password123"),
+        UserCreate(username="sentence_test", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
 
@@ -207,7 +207,7 @@ def test_generate_quiz_endpoint(client: TestClient, db_session: Session):
     """Test POST /api/v1/lessons/generate-quiz with word_ids and with raw text."""
     user = create_user(
         db_session,
-        UserCreate(username="quiz_api_user", password="password123"),
+        UserCreate(username="quiz_api_user", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
 
@@ -247,7 +247,7 @@ async def test_scheduler_nightly_revision_check(db_session: Session):
     """Test nightly revision check generates a revision quiz only when conditions are met."""
     user = create_user(
         db_session,
-        UserCreate(username="sched_user", password="password123"),
+        UserCreate(username="sched_user", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
 
@@ -284,7 +284,7 @@ async def test_check_and_generate_revision_quizzes_function(db_session: Session)
     """Test check_and_generate_revision_quizzes function for all users."""
     user = create_user(
         db_session,
-        UserCreate(username="rev_quizzes_user", password="password123"),
+        UserCreate(username="rev_quizzes_user", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
     w = get_or_create_word(db_session, language_code="en", text="sun", translation="солнце")
@@ -306,30 +306,15 @@ def test_multi_user_lesson_isolation(client: TestClient, db_session: Session):
 
     user_a = create_user(
         db_session,
-        UserCreate(username="lesson_user_a", password="password123"),
+        UserCreate(username="lesson_user_a", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
-    profile_a = LearningProfile(
-        user_id=user_a.id,
-        source_language="ru",
-        target_language="en",
-        is_active=True,
-    )
-    db_session.add(profile_a)
 
     user_b = create_user(
         db_session,
-        UserCreate(username="lesson_user_b", password="password123"),
+        UserCreate(username="lesson_user_b", password="password123", source_language="ru", target_language="en"),
         hashed_password=hash_password("password123"),
     )
-    profile_b = LearningProfile(
-        user_id=user_b.id,
-        source_language="ru",
-        target_language="en",
-        is_active=True,
-    )
-    db_session.add(profile_b)
-    db_session.commit()
 
     token_a = create_access_token(data={"sub": str(user_a.id), "username": user_a.username})
     headers_a = {"Authorization": f"Bearer {token_a}"}

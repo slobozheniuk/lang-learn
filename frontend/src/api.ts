@@ -86,8 +86,9 @@ export async function registerUser(body: {
   username: string;
   email?: string;
   password: string;
-  native_language?: string;
+  source_language?: string;
   target_language?: string;
+  native_language?: string;
   default_source_lang?: string;
   default_target_lang?: string;
 }): Promise<RegisterResponse> {

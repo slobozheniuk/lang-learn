@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -47,18 +48,13 @@ def list_lessons(
     current_user: User = Depends(get_current_user),
 ) -> list[LessonRead]:
     active_profile = current_user.get_active_profile()
-    src = (
-        source_lang
-        or (active_profile.source_language if active_profile else None)
-        or getattr(current_user, "native_language", None)
-        or getattr(current_user, "default_source_lang", None)
-    )
-    tgt = (
-        target_lang
-        or (active_profile.target_language if active_profile else None)
-        or getattr(current_user, "target_language", None)
-        or getattr(current_user, "default_target_lang", None)
-    )
+    src = source_lang or (active_profile.source_language if active_profile else None)
+    tgt = target_lang or (active_profile.target_language if active_profile else None)
+    if not src or not tgt:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active learning profile required or language filters must be specified.",
+        )
     lessons = get_user_lessons(
         db,
         user_id=current_user.id,
@@ -146,20 +142,13 @@ async def generate_quiz_lesson(
     current_user: User = Depends(get_current_user),
 ) -> LessonRead:
     active_profile = current_user.get_active_profile()
-    source_lang = (
-        request.source_lang
-        or (active_profile.source_language if active_profile else None)
-        or getattr(current_user, "native_language", None)
-        or getattr(current_user, "default_source_lang", None)
-        or "ru"
-    )
-    target_lang = (
-        request.target_lang
-        or (active_profile.target_language if active_profile else None)
-        or getattr(current_user, "target_language", None)
-        or getattr(current_user, "default_target_lang", None)
-        or "en"
-    )
+    source_lang = request.source_lang or (active_profile.source_language if active_profile else None)
+    target_lang = request.target_lang or (active_profile.target_language if active_profile else None)
+    if not source_lang or not target_lang:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active learning profile required or source and target languages must be specified.",
+        )
 
     words = []
     if request.word_ids and len(request.word_ids) > 0:
@@ -288,20 +277,13 @@ async def chunk_text_endpoint(
             detail="Text cannot be empty.",
         )
     active_profile = current_user.get_active_profile()
-    source_lang = (
-        request.source_lang
-        or (active_profile.source_language if active_profile else None)
-        or getattr(current_user, "native_language", None)
-        or getattr(current_user, "default_source_lang", None)
-        or "ru"
-    )
-    target_lang = (
-        request.target_lang
-        or (active_profile.target_language if active_profile else None)
-        or getattr(current_user, "target_language", None)
-        or getattr(current_user, "default_target_lang", None)
-        or "en"
-    )
+    source_lang = request.source_lang or (active_profile.source_language if active_profile else None)
+    target_lang = request.target_lang or (active_profile.target_language if active_profile else None)
+    if not source_lang or not target_lang:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active learning profile required or source and target languages must be specified.",
+        )
 
     chunk_response = await job_queue_service.llm.chunk_text(
         text=request.text,
@@ -366,18 +348,17 @@ async def prepare_lesson_endpoint(
         request.source_lang
         or (lesson.source_lang if lesson else None)
         or (active_profile.source_language if active_profile else None)
-        or getattr(current_user, "native_language", None)
-        or getattr(current_user, "default_source_lang", None)
-        or "ru"
     )
     target_lang = (
         request.target_lang
         or (lesson.target_lang if lesson else None)
         or (active_profile.target_language if active_profile else None)
-        or getattr(current_user, "target_language", None)
-        or getattr(current_user, "default_target_lang", None)
-        or "en"
     )
+    if not source_lang or not target_lang:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active learning profile required or source and target languages must be specified.",
+        )
 
     # Extract selected items
     raw_selected: list[Any] = []
@@ -616,12 +597,19 @@ async def create_lesson_endpoint(
         )
 
     active_profile = current_user.get_active_profile()
+    source_lang = request.source_lang or (active_profile.source_language if active_profile else None)
+    target_lang = request.target_lang or (active_profile.target_language if active_profile else None)
+    if not source_lang or not target_lang:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active learning profile required or source and target languages must be specified.",
+        )
     job, lesson, words = await job_queue_service.submit_text(
         db=db,
         user_id=current_user.id,
         text=request.text,
-        source_lang=request.source_lang or (active_profile.source_language if active_profile else None) or current_user.default_source_lang,
-        target_lang=request.target_lang or (active_profile.target_language if active_profile else None) or current_user.default_target_lang,
+        source_lang=source_lang,
+        target_lang=target_lang,
         wait=request.wait,
     )
 

@@ -27,8 +27,8 @@ class Job(Base, TimestampMixin):
         String(50), default="queued", index=True, nullable=False
     )  # queued, processing, completed, failed
     input_text: Mapped[str] = mapped_column(Text, nullable=False)
-    source_lang: Mapped[str] = mapped_column(String(10), default="ru", nullable=False)
-    target_lang: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
+    source_lang: Mapped[str] = mapped_column(String(10), nullable=False)
+    target_lang: Mapped[str] = mapped_column(String(10), nullable=False)
     lesson_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("lessons.id", ondelete="SET NULL"), index=True, nullable=True
     )

@@ -39,8 +39,6 @@ def test_register_creates_default_learning_profile(client: TestClient):
     assert response.status_code == 201
     data = response.json()
     assert data["user"]["username"] == "profileuser"
-    assert data["user"]["native_language"] == "en"
-    assert data["user"]["target_language"] == "nl"
     assert len(data["user"]["profiles"]) == 1
     profile = data["user"]["profiles"][0]
     assert profile["source_language"] == "en"
@@ -199,10 +197,6 @@ def test_register_with_native_and_target_language(client: TestClient):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["user"]["native_language"] == "ru"
-    assert data["user"]["target_language"] == "nl"
-    assert data["user"]["default_source_lang"] == "ru"
-    assert data["user"]["default_target_lang"] == "nl"
     assert len(data["user"]["profiles"]) == 1
     assert data["user"]["profiles"][0]["source_language"] == "ru"
     assert data["user"]["profiles"][0]["target_language"] == "nl"
@@ -212,76 +206,49 @@ def test_get_me_returns_languages(client: TestClient, auth_headers: dict[str, st
     r1 = client.get("/api/v1/auth/me", headers=auth_headers)
     assert r1.status_code == 200
     d1 = r1.json()
-    assert "native_language" in d1
-    assert "target_language" in d1
-    assert d1["native_language"] == "ru"
-    assert d1["target_language"] == "en"
+    assert "profiles" in d1
+    assert len(d1["profiles"]) >= 1
+    assert d1["profiles"][0]["source_language"] == "ru"
+    assert d1["profiles"][0]["target_language"] == "en"
 
     r2 = client.get("/api/v1/users/me", headers=auth_headers)
     assert r2.status_code == 200
     d2 = r2.json()
-    assert d2["native_language"] == "ru"
-    assert d2["target_language"] == "en"
+    assert "profiles" in d2
+    assert len(d2["profiles"]) >= 1
+    assert d2["profiles"][0]["source_language"] == "ru"
+    assert d2["profiles"][0]["target_language"] == "en"
 
 
-def test_update_me_languages_auth_endpoint(client: TestClient, auth_headers: dict[str, str]):
+def test_update_me_username_auth_endpoint(client: TestClient, auth_headers: dict[str, str]):
     response = client.patch(
         "/api/v1/auth/me",
         headers=auth_headers,
-        json={
-            "native_language": "nl",
-            "target_language": "ru",
-        },
+        json={"username": "updated_user_1"},
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["native_language"] == "nl"
-    assert data["target_language"] == "ru"
-    assert data["default_source_lang"] == "nl"
-    assert data["default_target_lang"] == "ru"
+    assert data["username"] == "updated_user_1"
 
     # Verify persisted in GET /me
     get_res = client.get("/api/v1/auth/me", headers=auth_headers)
-    assert get_res.json()["native_language"] == "nl"
-    assert get_res.json()["target_language"] == "ru"
+    assert get_res.json()["username"] == "updated_user_1"
 
 
-def test_update_me_languages_users_endpoint(client: TestClient, auth_headers: dict[str, str]):
+def test_update_me_username_users_endpoint(client: TestClient, auth_headers: dict[str, str]):
     response = client.patch(
         "/api/v1/users/me",
         headers=auth_headers,
-        json={
-            "native_language": "ru",
-            "target_language": "nl",
-        },
+        json={"username": "updated_user_2"},
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["native_language"] == "ru"
-    assert data["target_language"] == "nl"
-
-
-def test_update_me_invalid_language(client: TestClient, auth_headers: dict[str, str]):
-    response = client.patch(
-        "/api/v1/auth/me",
-        headers=auth_headers,
-        json={"native_language": "xx"},
-    )
-    assert response.status_code == 400
-    assert "Invalid native language" in response.json()["detail"]
-
-    response2 = client.patch(
-        "/api/v1/auth/me",
-        headers=auth_headers,
-        json={"target_language": "xx"},
-    )
-    assert response2.status_code == 400
-    assert "Invalid target language" in response2.json()["detail"]
+    assert data["username"] == "updated_user_2"
 
 
 def test_update_me_unauthenticated(client: TestClient):
     response = client.patch(
         "/api/v1/auth/me",
-        json={"native_language": "en"},
+        json={"username": "new_unauth_name"},
     )
     assert response.status_code == 401

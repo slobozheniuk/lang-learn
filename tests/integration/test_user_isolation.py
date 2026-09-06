@@ -24,15 +24,6 @@ def create_authenticated_user(
         default_target_lang=target_lang,
     )
     user = create_user(db, user_in, hashed_password=hash_password("testpassword123"))
-    profile = LearningProfile(
-        user_id=user.id,
-        source_language=source_lang,
-        target_language=target_lang,
-        is_active=True,
-    )
-    db.add(profile)
-    db.commit()
-    db.refresh(user)
 
     token = create_access_token(data={"sub": str(user.id), "username": user.username})
     headers = {"Authorization": f"Bearer {token}"}

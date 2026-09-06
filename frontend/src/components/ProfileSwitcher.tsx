@@ -34,10 +34,21 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({ languages, onP
   const [profiles, setProfiles] = useState<LearningProfile[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newSourceLang, setNewSourceLang] = useState('ru');
-  const [newTargetLang, setNewTargetLang] = useState('en');
+  const [newSourceLang, setNewSourceLang] = useState(languages[0]?.code || '');
+  const [newTargetLang, setNewTargetLang] = useState(languages[1]?.code || languages[0]?.code || '');
   const [isLoading, setIsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!newSourceLang && languages.length > 0) {
+      setNewSourceLang(languages[0].code);
+    }
+    if (!newTargetLang && languages.length > 1) {
+      setNewTargetLang(languages[1].code);
+    } else if (!newTargetLang && languages.length === 1) {
+      setNewTargetLang(languages[0].code);
+    }
+  }, [languages, newSourceLang, newTargetLang]);
 
   const activeProfile = profiles.find((p) => p.is_active) || profiles[0] || null;
 

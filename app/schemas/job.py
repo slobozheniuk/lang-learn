@@ -7,8 +7,8 @@ from app.schemas.word import WordRead
 
 class JobBase(BaseModel):
     input_text: str
-    source_lang: str = Field(default="ru", max_length=10)
-    target_lang: str = Field(default="en", max_length=10)
+    source_lang: str = Field(..., max_length=10)
+    target_lang: str = Field(..., max_length=10)
     type: str = Field(default="text_translation", max_length=50)
 
 

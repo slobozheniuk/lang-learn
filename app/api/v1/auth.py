@@ -40,15 +40,15 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)) -> AuthResponse
             detail="A user with this username already exists.",
         )
 
-    native_lang = (user_in.native_language or user_in.default_source_lang or "ru").lower().strip()
-    target_lang = (user_in.target_language or user_in.default_target_lang or "en").lower().strip()
+    source_lang = user_in.source_language.lower().strip()
+    target_lang = user_in.target_language.lower().strip()
 
     # Validate source and target languages exist
-    if not get_language_by_code(db, native_lang):
-        logger.warning(f"Registration failed: invalid source language '{native_lang}'.")
+    if not get_language_by_code(db, source_lang):
+        logger.warning(f"Registration failed: invalid source language '{source_lang}'.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid default source language '{native_lang}'.",
+            detail=f"Invalid default source language '{source_lang}'.",
         )
     if not get_language_by_code(db, target_lang):
         logger.warning(f"Registration failed: invalid target language '{target_lang}'.")
@@ -60,22 +60,11 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)) -> AuthResponse
     hashed_pw = hash_password(user_in.password)
     user = create_user(db, user_in, hashed_password=hashed_pw)
 
-    # Create default learning profile
-    profile = LearningProfile(
-        user_id=user.id,
-        source_language=native_lang,
-        target_language=target_lang,
-        is_active=True,
-    )
-    db.add(profile)
-    db.commit()
-    db.refresh(user)
-
     token_str = create_access_token(data={"sub": str(user.id), "username": user.username})
 
     logger.info(
         f"User registration successful: user_id={user.id}, username='{user.username}', "
-        f"native_lang='{native_lang}', target_lang='{target_lang}'"
+        f"source_lang='{source_lang}', target_lang='{target_lang}'"
     )
 
     return AuthResponse(
@@ -152,21 +141,6 @@ def update_me(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UserRead:
-    native_lang = user_in.native_language or user_in.default_source_lang
-    if native_lang:
-        if not get_language_by_code(db, native_lang.lower().strip()):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid native language '{native_lang}'.",
-            )
-    target_lang = user_in.target_language or user_in.default_target_lang
-    if target_lang:
-        if not get_language_by_code(db, target_lang.lower().strip()):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid target language '{target_lang}'.",
-            )
-
     if user_in.username and user_in.username.strip() != current_user.username:
         existing = get_user_by_username(db, user_in.username)
         if existing and existing.id != current_user.id:
@@ -176,8 +150,5 @@ def update_me(
             )
 
     updated = update_user(db, current_user, user_in)
-    logger.info(
-        f"User profile updated: user_id={updated.id}, username='{updated.username}', "
-        f"native_lang='{updated.native_language}', target_lang='{updated.target_language}'"
-    )
+    logger.info(f"User profile updated: user_id={updated.id}, username='{updated.username}'")
     return UserRead.model_validate(updated)

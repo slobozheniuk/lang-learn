@@ -70,8 +70,8 @@ export function App() {
 
   const [regUsername, setRegUsername] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regNativeLang, setRegNativeLang] = useState('ru');
-  const [regTargetLang, setRegTargetLang] = useState('en');
+  const [regNativeLang, setRegNativeLang] = useState('');
+  const [regTargetLang, setRegTargetLang] = useState('');
 
   const [quickInput, setQuickInput] = useState('');
   const [multiSentencePrompt, setMultiSentencePrompt] = useState<{
@@ -99,6 +99,21 @@ export function App() {
   activePageRef.current = activePage;
   const isAuthenticatedRef = useRef(isAuthenticated);
   isAuthenticatedRef.current = isAuthenticated;
+
+  // Active language resolution helper
+  const getActiveLanguagePair = useCallback(() => {
+    const profile = activeProfileRef.current || activeProfile;
+    if (!profile) {
+      return {
+        sourceLang: '',
+        targetLang: '',
+      };
+    }
+    return {
+      sourceLang: profile.source_language,
+      targetLang: profile.target_language,
+    };
+  }, [activeProfile]);
 
   // Load Profiles
   const loadProfiles = useCallback(async () => {
@@ -203,11 +218,12 @@ export function App() {
     try {
       const langs = await fetchLanguages();
       setLanguages(langs || []);
-      if (userRef.current?.native_language || userRef.current?.default_source_lang) {
-        setRegNativeLang(userRef.current.native_language || userRef.current.default_source_lang || 'ru');
-      }
-      if (userRef.current?.target_language || userRef.current?.default_target_lang) {
-        setRegTargetLang(userRef.current.target_language || userRef.current.default_target_lang || 'en');
+      if (langs && langs.length >= 2) {
+        setRegNativeLang((prev) => prev || langs[0].code);
+        setRegTargetLang((prev) => prev || langs[1].code);
+      } else if (langs && langs.length === 1) {
+        setRegNativeLang((prev) => prev || langs[0].code);
+        setRegTargetLang((prev) => prev || langs[0].code);
       }
     } catch (e) {
       console.warn('Failed to load languages:', e);
@@ -449,25 +465,20 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [submitRating]);
 
-  // Quick word form submit
-  const handleQuickWordSubmit = async (text: string) => {
+  // Quick text form submit
+  const handleTextSubmit = async (text: string) => {
     let raw = text.trim();
     if (!raw || !tokenRef.current) return;
 
     setQuickInput('');
 
-    const currentProfile = activeProfileRef.current || activeProfile;
-    const source_lang = currentProfile?.source_language || (userRef.current && (userRef.current.native_language || userRef.current.default_source_lang)) || 'ru';
-    const language_code =
-      currentProfile?.target_language ||
-      (userRef.current && (userRef.current.target_language || userRef.current.default_target_lang)) ||
-      (languages && languages.length ? languages[0].code : 'en');
+    const { sourceLang, targetLang } = getActiveLanguagePair();
 
     try {
       const result = await submitText({
         text: raw,
-        source_lang,
-        target_lang: language_code,
+        source_lang: sourceLang,
+        target_lang: targetLang,
         wait: true,
       });
 
@@ -519,7 +530,7 @@ export function App() {
         const newWord = await createWord({
           text,
           translation,
-          language_code,
+          language_code: targetLang,
         });
 
         triggerHaptic('success');
@@ -553,13 +564,11 @@ export function App() {
     if (!multiSentencePrompt) return;
     setIsGeneratingQuiz(true);
     try {
-      const currentProfile = activeProfileRef.current || activeProfile;
-      const source_lang = currentProfile?.source_language || (user && (user.native_language || user.default_source_lang)) || 'ru';
-      const target_lang = currentProfile?.target_language || (user && (user.target_language || user.default_target_lang)) || 'en';
+      const { sourceLang, targetLang } = getActiveLanguagePair();
       const chunkRes = await chunkText({
         text: multiSentencePrompt.text,
-        source_lang,
-        target_lang,
+        source_lang: sourceLang,
+        target_lang: targetLang,
         create_lesson: true,
       });
       triggerHaptic('success');
@@ -574,8 +583,8 @@ export function App() {
         input_type: 'reading',
         chunk_data: chunkRes,
         words: [],
-        source_lang,
-        target_lang,
+        source_lang: sourceLang,
+        target_lang: targetLang,
       };
 
       setActiveLesson(newLesson);
@@ -601,7 +610,7 @@ export function App() {
     e.currentTarget.blur();
     const currentCard = deck[currentIndex];
     const text = currentCard?.text || '';
-    const lang = currentCard?.language_code || activeProfileRef.current?.target_language || user?.target_language || user?.default_target_lang || 'en';
+    const lang = currentCard?.language_code || activeProfileRef.current?.target_language || 'en';
     if (text) {
       pronounceWord(text, lang);
       triggerHaptic('impact');
@@ -667,10 +676,11 @@ export function App() {
       const res = await registerUser({
         username: regUsername,
         password: regPassword,
-        native_language: regNativeLang || 'ru',
-        target_language: regTargetLang || 'en',
-        default_source_lang: regNativeLang || 'ru',
-        default_target_lang: regTargetLang || 'en',
+        source_language: regNativeLang,
+        target_language: regTargetLang,
+        native_language: regNativeLang,
+        default_source_lang: regNativeLang,
+        default_target_lang: regTargetLang,
       });
       const tok = res.token.access_token;
       setApiToken(tok);
@@ -697,10 +707,6 @@ export function App() {
     const demoUser = {
       username: 'demo_student',
       password: 'demopassword123',
-      native_language: 'ru',
-      target_language: 'en',
-      default_source_lang: 'ru',
-      default_target_lang: 'en',
     };
 
     try {
@@ -865,7 +871,7 @@ export function App() {
             <BottomDock
               quickInput={quickInput}
               onInputChange={setQuickInput}
-              onSubmit={handleQuickWordSubmit}
+              onSubmit={handleTextSubmit}
             />
           )}
 

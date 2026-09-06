@@ -84,17 +84,12 @@ async def check_and_generate_revision_quiz_for_user(
     if llm_provider is None:
         llm_provider = get_llm_provider()
 
-    target_lang = (
-        getattr(user, "target_language", None)
-        or getattr(user, "default_target_lang", None)
-        or due_words[0].language_code
-        or "en"
-    )
-    source_lang = (
-        getattr(user, "native_language", None)
-        or getattr(user, "default_source_lang", None)
-        or "ru"
-    )
+    active_profile = user.get_active_profile()
+    if not active_profile:
+        logger.warning(f"Skipping nightly revision for user {user.id}: no active profile found")
+        return None
+    target_lang = active_profile.target_language or due_words[0].language_code
+    source_lang = active_profile.source_language
 
     words_data = [
         {

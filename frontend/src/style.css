@@ -1486,10 +1486,6 @@ button {
   border-color: var(--color-primary);
 }
 
-.input-wrapper.is-sending {
-  border-color: rgba(99, 102, 241, 0.4);
-}
-
 .input-ghost-text {
   position: absolute;
   left: 1.1rem;

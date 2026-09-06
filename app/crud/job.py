@@ -9,8 +9,8 @@ def create_job(
     db: Session,
     user_id: int,
     input_text: str,
-    source_lang: str = "ru",
-    target_lang: str = "en",
+    source_lang: str,
+    target_lang: str,
     type: str = "text_translation",
     lesson_id: int | None = None,
 ) -> Job:

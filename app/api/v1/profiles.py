@@ -30,8 +30,8 @@ def create_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> LearningProfileRead:
-    source_lang = (profile_in.source_language or "ru").lower().strip()
-    target_lang = (profile_in.target_language or "en").lower().strip()
+    source_lang = profile_in.source_language.lower().strip()
+    target_lang = profile_in.target_language.lower().strip()
     # Check for duplicate
     existing = db.scalar(
         select(LearningProfile).where(
@@ -54,10 +54,6 @@ def create_profile(
         is_active=True,
     )
     db.add(profile)
-    current_user.native_language = source_lang
-    current_user.target_language = target_lang
-    current_user.default_source_lang = source_lang
-    current_user.default_target_lang = target_lang
     db.commit()
     db.refresh(profile)
     logger.info(f"Created new profile {profile.id} for user {current_user.id}: {source_lang}->{target_lang}")
@@ -103,10 +99,4 @@ def _switch_active_profile(db: Session, user_id: int, profile_id: int) -> None:
     )
     if profile:
         profile.is_active = True
-        user = db.scalar(select(User).where(User.id == user_id))
-        if user:
-            user.native_language = profile.source_language
-            user.target_language = profile.target_language
-            user.default_source_lang = profile.source_language
-            user.default_target_lang = profile.target_language
         db.commit()

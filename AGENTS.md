@@ -125,7 +125,9 @@ lang-learn/
 
 1. **Authentication & Profile Management**:
    - `AuthView.tsx` -> `/api/v1/auth/login` (JWT stored in `localStorage`).
-   - `ProfileSwitcher.tsx` -> `/api/v1/profiles` (controls active target and native languages).
+   - `User` registration (`/api/v1/auth/register` or `create_user`) automatically creates and activates the first `LearningProfile`.
+   - `User` model does not store language columns; `LearningProfile` is the single source of truth for source and target language pairs.
+   - `ProfileSwitcher.tsx` -> `/api/v1/profiles` (controls active target and source languages via active profile).
 
 2. **Lesson Generation & Practice**:
    - `LessonsView.tsx` triggers lesson generation -> `/api/v1/lessons/generate`.

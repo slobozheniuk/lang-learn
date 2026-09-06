@@ -1,12 +1,8 @@
 export interface User {
   id: number;
   username: string;
-  email?: string;
-  native_language?: string;
-  target_language?: string;
-  default_source_lang?: string;
-  default_target_lang?: string;
   is_active?: boolean;
+  profiles?: LearningProfile[];
 }
 
 export interface LearningProfile {
