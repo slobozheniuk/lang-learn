@@ -286,39 +286,110 @@ uvicorn app.main:app --reload --port 8080
 
 ## 🧪 Running Tests
 
-The test suite includes unit tests, API integration tests, and Playwright end-to-end mobile tests.
+The test suite includes unit tests, API integration tests, and Playwright end-to-end tests.
 
 Activate your virtual environment before running tests:
 ```bash
 source .venv/bin/activate
 ```
 
-### 1. Run Full Test Suite
+### 1. Run Python Unit & Integration Tests
 
 ```bash
+# Full Python test suite
 pytest -v
-```
 
-### 2. Run Specific Test Suites
-
-```bash
-# Run unit tests only
+# Unit tests only
 pytest tests/unit -v
 
-# Run API integration tests only
+# API integration tests only
 pytest tests/integration -v
 
-# Run Playwright mobile viewport E2E tests
-pytest tests/mobile -v
-```
-
-*(Note: If running Playwright tests for the first time, install browser binaries with `playwright install chromium`)*
-
-### 3. Run with Test Coverage
-
-```bash
+# With coverage report
 pytest --cov=app --cov-report=term-missing tests/
 ```
+
+---
+
+### 2. Run Playwright E2E Tests
+
+End-to-end tests live in `tests/e2e/` and are written in TypeScript. They run
+against a real FastAPI server (started automatically by Playwright) on an
+isolated SQLite database, across two real device profiles:
+
+| Project | Device | Engine |
+| :--- | :--- | :--- |
+| `Mobile Chrome – Galaxy S24` | 360 × 800, touch | Chromium |
+| `Mobile Safari – iPhone 13 Pro Max` | 428 × 926, touch | WebKit |
+
+#### Install Playwright (first time only)
+
+```bash
+# Install Node dependencies (if not already done via frontend setup)
+cd frontend && npm install && cd ..
+
+# Install Playwright browser binaries
+npx playwright install
+```
+
+#### Run all E2E tests
+
+```bash
+npx playwright test
+```
+
+Playwright automatically:
+1. Starts a FastAPI test server on port **8899** with a fresh SQLite database.
+2. Waits for `/health` to return 200.
+3. Seeds the `demo_student` account via the registration API.
+4. Runs the 56 tests (28 scenarios × 2 device projects).
+5. Shuts the test server down after the run.
+
+#### Run a specific file or test
+
+```bash
+# Single spec file
+npx playwright test tests/e2e/mobile-app.spec.ts
+
+# Single test by name (grep)
+npx playwright test -g "test_card_flip_front_to_back"
+
+# Single device project
+npx playwright test --project "Mobile Chrome – Galaxy S24"
+```
+
+#### Open the interactive HTML report
+
+```bash
+npx playwright show-report
+```
+
+#### Debug a failing test
+
+```bash
+# Opens the Playwright inspector for step-by-step debugging
+npx playwright test --debug tests/e2e/mobile-app.spec.ts
+```
+
+#### E2E test architecture
+
+| File | Purpose |
+| :--- | :--- |
+| `playwright.config.ts` | Device projects, `webServer` config, global setup hook |
+| `tests/e2e/global-setup.ts` | Seeds `demo_student` user before tests run |
+| `tests/e2e/fixtures.ts` | `loginDemoUser` helper; `page` fixture that clears `localStorage` before each test |
+| `tests/e2e/mobile-app.spec.ts` | Layout, auth flow, flashcard UX, SRS buttons, screenshots |
+| `tests/e2e/lessons-and-restart.spec.ts` | Lesson cards, detail view, three-dot menus |
+| `tests/e2e/wordlist-and-navigation.spec.ts` | Burger menu, navigation, wordlist pagination & badges |
+| `tests/e2e/ai-translation.spec.ts` | Quick-input single word and long-text lesson creation |
+| `tests/e2e/lesson-reading-selection.spec.ts` | Interactive reading chunks, quiz mode flow |
+| `tests/e2e/single-word-no-lesson.spec.ts` | Single-word submission creates no lesson |
+
+> **CI note:** Set `CI=true` to force a fresh server start (disables `reuseExistingServer`):
+> ```bash
+> CI=true npx playwright test
+> ```
+
 
 ---
 
@@ -332,7 +403,7 @@ Pre-configured debug targets are included in `.vscode/launch.json`:
 2. **FastAPI: Run App (Port 8000)** - Runs uvicorn on port 8000.
 3. **Pytest: Current File** - Runs and debugs the currently active test file in VS Code.
 4. **Pytest: All Tests** - Runs full pytest suite with debugger attached.
-5. **Pytest: Playwright Mobile E2E** - Debugs Playwright mobile end-to-end tests.
+5. **Playwright: E2E Tests** - Runs the TypeScript Playwright suite (`npx playwright test`) with the Playwright inspector.
 
 ### How to use in VS Code:
 1. Open the project root folder in VS Code: `code .`

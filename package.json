@@ -1,0 +1,26 @@
+{
+  "name": "lang-learn",
+  "version": "1.0.0",
+  "description": "> Modern, multimodal language learning web platform and Telegram Web App (TWA) with AI-powered micro-lesson generation, single-word vocabulary ingestion, interactive quiz creation, and algorithmic Spaced Repetition (SM-2).",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/slobozheniuk/lang-learn.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/slobozheniuk/lang-learn/issues"
+  },
+  "homepage": "https://github.com/slobozheniuk/lang-learn#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.4.1"
+  }
+}
