@@ -23,7 +23,7 @@ def test_profile_creation_switching_and_word_isolation(
     # 2. Submit single word 'привет' via submit-text with active profile
     res_submit = client.post(
         "/api/v1/words/submit-text",
-        json={"text": "привет", "wait": True},
+        json={"text": "привет", "source_lang": "en", "target_lang": "ru", "wait": True},
         headers=auth_headers,
     )
     assert res_submit.status_code == 201

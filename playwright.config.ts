@@ -13,6 +13,12 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: 'html',
 
+  expect: {
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.05,
+    },
+  },
+
   // ---------------------------------------------------------------------------
   // Web server – Playwright starts the FastAPI server before tests and kills it
   // afterwards. No manual process management needed.

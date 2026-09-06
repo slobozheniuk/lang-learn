@@ -6,7 +6,11 @@
   "directories": {
     "test": "tests"
   },
-  "scripts": {},
+  "scripts": {
+    "test": ".venv/bin/pytest tests/unit tests/integration & p1=$!; npx playwright test; s=$?; wait $p1 || s=$?; exit $s",
+    "test:pw": "playwright test",
+    "test:unit": ".venv/bin/pytest tests/unit tests/integration"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/slobozheniuk/lang-learn.git"

@@ -2,12 +2,7 @@
  * Mobile App Layout & Core UI tests
  * Mirrors: tests/mobile/test_mobile_app.py
  */
-import * as fs from 'fs';
-import * as path from 'path';
 import { test, expect, loginUser } from './fixtures';
-
-const SCREENSHOTS_DIR = path.resolve('tests/screenshots');
-fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
 test('test_mobile_layout_and_fixed_elements', async ({ page }) => {
   // Unauthenticated state checks
@@ -63,10 +58,7 @@ test('test_mobile_layout_and_fixed_elements', async ({ page }) => {
   const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
   expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
 
-  const screenshotPath = path.join(SCREENSHOTS_DIR, 'mobile_layout_initial.png');
-  await page.screenshot({ path: screenshotPath });
-  expect(fs.existsSync(screenshotPath)).toBeTruthy();
-  expect(fs.statSync(screenshotPath).size).toBeGreaterThan(0);
+  await expect(page).toHaveScreenshot();
 });
 
 test('test_auth_view_tabs_and_flow', async ({ page }) => {
@@ -276,10 +268,7 @@ test('test_word_addition_and_flashcard_display', async ({ page }) => {
   await expect(quickInput).toHaveValue('');
   await expect(page.locator('#empty-state')).not.toBeVisible();
 
-  const screenshotPath = path.join(SCREENSHOTS_DIR, 'mobile_card_front.png');
-  await page.screenshot({ path: screenshotPath });
-  expect(fs.existsSync(screenshotPath)).toBeTruthy();
-  expect(fs.statSync(screenshotPath).size).toBeGreaterThan(0);
+  await expect(page).toHaveScreenshot();
 });
 
 test('test_flashcard_flip_and_srs_buttons_ui', async ({ page }) => {
@@ -365,10 +354,7 @@ test('test_flashcard_flip_and_srs_buttons_ui', async ({ page }) => {
   const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
   expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
 
-  const screenshotPath = path.join(SCREENSHOTS_DIR, 'mobile_card_back_srs.png');
-  await page.screenshot({ path: screenshotPath });
-  expect(fs.existsSync(screenshotPath)).toBeTruthy();
-  expect(fs.statSync(screenshotPath).size).toBeGreaterThan(0);
+  await expect(page).toHaveScreenshot();
 });
 
 test('test_mobile_viewport_no_overflow', async ({ page }) => {
@@ -421,28 +407,6 @@ test('test_mobile_viewport_no_overflow', async ({ page }) => {
 
   await btnWrong.scrollIntoViewIfNeeded();
 
-  const screenshotPath = path.join(SCREENSHOTS_DIR, 'mobile_viewport_no_overflow.png');
-  await page.screenshot({ path: screenshotPath });
-  expect(fs.existsSync(screenshotPath)).toBeTruthy();
-  expect(fs.statSync(screenshotPath).size).toBeGreaterThan(0);
+  await expect(page).toHaveScreenshot();
 });
 
-test('test_visual_screenshots_generated', async ({ page }) => {
-  // This test validates previously generated screenshots exist.
-  // In practice it will be accurate only if the screenshot-generating tests ran first.
-  const expectedScreenshots = [
-    'mobile_layout_initial.png',
-    'mobile_card_front.png',
-    'mobile_card_back_srs.png',
-    'mobile_viewport_no_overflow.png',
-  ];
-
-  for (const filename of expectedScreenshots) {
-    const p = path.join(SCREENSHOTS_DIR, filename);
-    expect(fs.existsSync(p), `Expected screenshot ${filename} to exist`).toBeTruthy();
-    expect(
-      fs.statSync(p).size,
-      `Screenshot ${filename} should be > 1000 bytes`
-    ).toBeGreaterThan(1000);
-  }
-});

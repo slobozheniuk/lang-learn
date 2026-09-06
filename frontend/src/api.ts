@@ -151,9 +151,9 @@ export async function createWord(body: {
 
 export async function submitText(body: {
   text: string;
-  source_lang?: string;
-  target_lang?: string;
-  wait?: boolean;
+  source_lang: string;
+  target_lang: string;
+  wait: boolean;
 }): Promise<any> {
   return api('/api/v1/words/submit-text', {
     method: 'POST',

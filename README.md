@@ -288,7 +288,24 @@ uvicorn app.main:app --reload --port 8080
 
 The test suite includes unit tests, API integration tests, and Playwright end-to-end tests.
 
-Activate your virtual environment before running tests:
+### Quick Start (npm scripts)
+
+You can run test suites directly with `npm`:
+
+```bash
+# Run ALL tests in parallel (Python pytest suite + Playwright E2E suite concurrently)
+npm test
+
+# Run only Playwright E2E tests
+npm run test:pw
+
+# Run only Python unit & integration tests
+npm run test:unit
+```
+
+---
+
+Activate your virtual environment before running manual Python commands:
 ```bash
 source .venv/bin/activate
 ```

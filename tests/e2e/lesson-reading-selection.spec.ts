@@ -2,12 +2,7 @@
  * Interactive Lesson Reading & Word Selection tests
  * Mirrors: tests/mobile/test_lesson_reading_selection_e2e.py
  */
-import * as fs from 'fs';
-import * as path from 'path';
 import { test, expect, loginUser } from './fixtures';
-
-const SCREENSHOTS_DIR = path.resolve('tests/screenshots');
-fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
 test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) => {
   await loginUser(page);
@@ -74,7 +69,7 @@ test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) =>
   await expect(giveUpChip).toHaveClass(/chunk-highlighted/);
   await expect(page.locator('#selected-chunks-count')).toContainText('2 words selected');
 
-  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '01_reading_chunks_highlighted.png') });
+  await expect(page).toHaveScreenshot();
 
   // Click Prepare Lesson
   await btnPrepare.click();
@@ -91,7 +86,7 @@ test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) =>
   await expect(option0).toBeVisible();
   await option0.click();
 
-  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '02_quiz_mode_after_prepare.png') });
+  await expect(page).toHaveScreenshot();
 
   // Next question
   const btnNextQ = page.locator('#btn-next-quiz-question');
