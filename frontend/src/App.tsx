@@ -74,8 +74,6 @@ export function App() {
   const [regTargetLang, setRegTargetLang] = useState('en');
 
   const [quickInput, setQuickInput] = useState('');
-  const [pendingRequests, setPendingRequests] = useState<number>(0);
-  const isSending = pendingRequests > 0;
   const [multiSentencePrompt, setMultiSentencePrompt] = useState<{
     text: string;
     words: Word[];
@@ -452,20 +450,11 @@ export function App() {
   }, [submitRating]);
 
   // Quick word form submit
-  const handleQuickWordSubmit = async (eOrText?: React.FormEvent | string) => {
-    let raw = '';
-    if (typeof eOrText === 'string') {
-      raw = eOrText.trim();
-    } else {
-      if (eOrText && typeof eOrText === 'object' && 'preventDefault' in eOrText) {
-        eOrText.preventDefault();
-      }
-      raw = quickInput.trim();
-    }
+  const handleQuickWordSubmit = async (text: string) => {
+    let raw = text.trim();
     if (!raw || !tokenRef.current) return;
 
     setQuickInput('');
-    setPendingRequests((prev) => prev + 1);
 
     const currentProfile = activeProfileRef.current || activeProfile;
     const source_lang = currentProfile?.source_language || (userRef.current && (userRef.current.native_language || userRef.current.default_source_lang)) || 'ru';
@@ -556,8 +545,6 @@ export function App() {
         triggerHaptic('error');
         console.error('Failed to add word:', fallbackErr);
       }
-    } finally {
-      setPendingRequests((prev) => Math.max(0, prev - 1));
     }
   };
 
@@ -877,7 +864,6 @@ export function App() {
           {!activeLesson && activePage !== 'settings' && (
             <BottomDock
               quickInput={quickInput}
-              isSending={isSending}
               onInputChange={setQuickInput}
               onSubmit={handleQuickWordSubmit}
             />

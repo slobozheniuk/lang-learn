@@ -7,14 +7,12 @@ export interface FloatingGhost {
 
 export interface BottomDockProps {
   quickInput: string;
-  isSending: boolean;
   onInputChange: (value: string) => void;
-  onSubmit: (eOrText?: React.FormEvent | string) => void;
+  onSubmit: (text: string) => void;
 }
 
 export const BottomDock: React.FC<BottomDockProps> = ({
   quickInput,
-  isSending,
   onInputChange,
   onSubmit,
 }) => {
@@ -45,7 +43,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
   };
 
   return (
-    <footer className={`bottom-dock ${isSending ? 'is-loading' : ''}`}>
+    <footer className="bottom-dock">
       <div className="bottom-dock-container">
         <form
           id="quick-word-form"
@@ -53,7 +51,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
           autoComplete="off"
           onSubmit={handleSubmit}
         >
-          <div className={`input-wrapper ${isSending ? 'is-sending' : ''}`}>
+          <div className="input-wrapper">
             {ghosts.map((ghost) => (
               <span
                 key={ghost.id}
@@ -77,11 +75,10 @@ export const BottomDock: React.FC<BottomDockProps> = ({
             <button
               type="submit"
               id="btn-quick-send"
-              className={`btn-quick-send ${isSending ? 'is-loading' : ''}`}
+              className="btn-quick-send"
               title="Add Word"
               aria-label="Add Word"
             >
-              {isSending && <span className="send-spinner-indicator" aria-hidden="true" />}
               <svg
                 className="send-icon"
                 viewBox="0 0 24 24"
