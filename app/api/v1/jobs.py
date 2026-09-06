@@ -31,21 +31,12 @@ async def submit_job(
             detail="Text cannot be empty.",
         )
 
-    active_profile = current_user.get_active_profile()
-    source_lang = request.source_lang or (active_profile.source_language if active_profile else None)
-    target_lang = request.target_lang or (active_profile.target_language if active_profile else None)
-    if not source_lang or not target_lang:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Active learning profile required or source and target languages must be specified.",
-        )
-
     job, lesson, words = await job_queue_service.submit_text(
         db=db,
         user_id=current_user.id,
         text=request.text,
-        source_lang=source_lang,
-        target_lang=target_lang,
+        source_lang=request.source_lang,
+        target_lang=request.target_lang,
         wait=request.wait,
     )
 

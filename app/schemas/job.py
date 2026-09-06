@@ -31,8 +31,8 @@ class JobRead(JobBase):
 
 class TextSubmissionRequest(BaseModel):
     text: str = Field(..., description="Single word, short phrase, sentence, or longer text")
-    source_lang: str = Field(max_length=10, description="Source/native language code (defaults to user profile)")
-    target_lang: str = Field(max_length=10, description="Target learning language code (defaults to user profile)")
+    source_lang: str = Field(max_length=10, description="Source/native language code")
+    target_lang: str = Field(max_length=10, description="Target learning language code")
     wait: bool = Field(default=True, description="Whether to wait synchronously for processing to complete")
 
 
