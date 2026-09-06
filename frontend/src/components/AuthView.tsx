@@ -20,7 +20,6 @@ export interface AuthViewProps {
   onRegTargetLangChange: (val: string) => void;
   onLoginSubmit: (e: React.FormEvent) => void;
   onRegisterSubmit: (e: React.FormEvent) => void;
-  onQuickDemoLogin: () => void;
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({
@@ -42,7 +41,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
   onRegTargetLangChange,
   onLoginSubmit,
   onRegisterSubmit,
-  onQuickDemoLogin,
 }) => {
   return (
     <div id="auth-view" className="auth-view-container">
@@ -203,18 +201,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               Create Account
             </button>
           </form>
-
-          {/* Quick Demo Button */}
-          <div className="auth-demo-divider">
-            <button
-              type="button"
-              id="quick-demo-btn"
-              className="btn btn-outline btn-full btn-sm"
-              onClick={onQuickDemoLogin}
-            >
-              ⚡ Quick Demo Login
-            </button>
-          </div>
         </div>
       </div>
     </div>

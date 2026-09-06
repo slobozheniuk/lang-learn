@@ -2,14 +2,14 @@
  * Lessons & Deck Restart tests
  * Mirrors: tests/mobile/test_lessons_and_restart.py
  */
-import { test, expect, loginDemoUser } from './fixtures';
+import { test, expect, loginUser } from './fixtures';
 
 test('test_lessons_is_default_page_on_load', async ({ page }) => {
   // Unauthenticated: auth visible, lessons hidden
   await expect(page.locator('#auth-view')).toBeVisible();
   await expect(page.locator('#lessons-view')).toHaveCount(0);
 
-  await loginDemoUser(page);
+  await loginUser(page);
 
   const lessonsView = page.locator('#lessons-view');
   await expect(lessonsView).toBeVisible();
@@ -33,7 +33,7 @@ test('test_lessons_is_default_page_on_load', async ({ page }) => {
 });
 
 test('test_lesson_cards_chunking_and_progress', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Clean existing words
   await page.evaluate(async () => {
@@ -90,7 +90,7 @@ test('test_lesson_cards_chunking_and_progress', async ({ page }) => {
 });
 
 test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Ensure at least 5 words
   await page.evaluate(async () => {
@@ -137,7 +137,7 @@ test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
 });
 
 test('test_lesson_detail_interactive_study_and_completion', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Seed 2 words
   await page.evaluate(async () => {
@@ -197,7 +197,7 @@ test('test_lesson_detail_interactive_study_and_completion', async ({ page }) => 
 });
 
 test('test_flashcards_restart_deck_button_on_completion', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Seed 2 words
   await page.evaluate(async () => {
@@ -219,11 +219,18 @@ test('test_flashcards_restart_deck_button_on_completion', async ({ page }) => {
   await page.locator('#nav-link-flashcards').click();
   await expect(page.locator('#flashcards-view')).toBeVisible();
 
+  // Wait for cards to be loaded and rendered
+  const card = page.locator('#flashcard');
+  await expect(card).toBeVisible();
+
   // Review all cards until deck empty
   for (let i = 0; i < 40; i++) {
-    if (await page.locator('#btn-srs-correct').isVisible()) {
-      await page.locator('#btn-srs-correct').click();
-      await page.waitForTimeout(200);
+    if (await card.isVisible()) {
+      await card.click();
+      const btnCorrect = page.locator('#btn-srs-correct');
+      await expect(btnCorrect).toBeVisible();
+      await btnCorrect.click();
+      await page.waitForTimeout(300);
     } else {
       break;
     }
@@ -242,7 +249,7 @@ test('test_flashcards_restart_deck_button_on_completion', async ({ page }) => {
 });
 
 test('test_lesson_three_dot_menu_and_delete_lesson', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Clean existing lessons and words
   await page.evaluate(async () => {
@@ -300,7 +307,7 @@ test('test_lesson_three_dot_menu_and_delete_lesson', async ({ page }) => {
 });
 
 test('test_lesson_three_dot_menu_flip_up_and_outside_click', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Seed 20 words (4 lessons) to fill the screen
   await page.evaluate(async () => {

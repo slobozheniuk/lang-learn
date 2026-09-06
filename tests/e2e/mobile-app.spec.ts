@@ -4,7 +4,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { test, expect, loginDemoUser } from './fixtures';
+import { test, expect, loginUser } from './fixtures';
 
 const SCREENSHOTS_DIR = path.resolve('tests/screenshots');
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
@@ -20,7 +20,7 @@ test('test_mobile_layout_and_fixed_elements', async ({ page }) => {
   await expect(page.locator('#flashcards-view')).toHaveCount(0);
   await expect(page.locator('#wordlist-view')).toHaveCount(0);
 
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Header is at y=0
   const header = page.locator('.app-header');
@@ -88,10 +88,11 @@ test('test_auth_view_tabs_and_flow', async ({ page }) => {
   await expect(page.locator('#login-form')).toBeVisible();
   await expect(page.locator('#register-form')).not.toBeVisible();
 
-  // Quick Demo Login
-  const quickDemoBtn = page.locator('#quick-demo-btn');
-  await expect(quickDemoBtn).toBeVisible();
-  await quickDemoBtn.click();
+  // Sign In with credentials
+  const username = `test-${test.info().workerIndex}`;
+  await page.locator('#login-identifier').fill(username);
+  await page.locator('#login-password').fill(username);
+  await page.locator('#btn-login-submit').click();
 
   await expect(page.locator('#btn-settings')).toBeVisible();
   await expect(page.locator('#lessons-view')).toBeVisible();
@@ -115,7 +116,7 @@ test('test_auth_view_tabs_and_flow', async ({ page }) => {
 });
 
 test('test_card_flip_front_to_back_and_reverse', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   await page.locator('#burger-menu-btn').click();
   await page.locator('#nav-link-flashcards').click();
@@ -150,7 +151,7 @@ test('test_card_flip_front_to_back_and_reverse', async ({ page }) => {
 test('test_sound_button_triggers_speech_synthesis', async ({ page, browserName }) => {
   // Web Speech API is unavailable in Playwright's headless WebKit — skip on Safari.
   test.skip(browserName === 'webkit', 'speechSynthesis not available in headless WebKit');
-  await loginDemoUser(page);
+  await loginUser(page);
 
   await page.locator('#burger-menu-btn').click();
   await page.locator('#nav-link-flashcards').click();
@@ -204,7 +205,7 @@ test('test_sound_button_triggers_speech_synthesis', async ({ page, browserName }
 });
 
 test('test_srs_buttons_submission_and_no_sticky_focus', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   await page.locator('#burger-menu-btn').click();
   await page.locator('#nav-link-flashcards').click();
@@ -244,7 +245,7 @@ test('test_srs_buttons_submission_and_no_sticky_focus', async ({ page }) => {
 
 test('test_word_addition_and_flashcard_display', async ({ page }) => {
   await expect(page.locator('#auth-view')).toBeVisible();
-  await loginDemoUser(page);
+  await loginUser(page);
 
   await page.locator('#burger-menu-btn').click();
   await page.locator('#nav-link-flashcards').click();
@@ -282,7 +283,7 @@ test('test_word_addition_and_flashcard_display', async ({ page }) => {
 });
 
 test('test_flashcard_flip_and_srs_buttons_ui', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   await page.locator('#burger-menu-btn').click();
   await page.locator('#nav-link-flashcards').click();
@@ -378,7 +379,7 @@ test('test_mobile_viewport_no_overflow', async ({ page }) => {
 
   const viewportWidth = page.viewportSize()!.width;
 
-  await loginDemoUser(page);
+  await loginUser(page);
 
   await page.locator('#burger-menu-btn').click();
   await page.locator('#nav-link-flashcards').click();

@@ -2,6 +2,7 @@ import logging
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
@@ -58,7 +59,15 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)) -> AuthResponse
         )
 
     hashed_pw = hash_password(user_in.password)
-    user = create_user(db, user_in, hashed_password=hashed_pw)
+    try:
+        user = create_user(db, user_in, hashed_password=hashed_pw)
+    except IntegrityError:
+        db.rollback()
+        logger.warning(f"Registration conflict: username '{user_in.username}' already exists.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this username already exists.",
+        )
 
     token_str = create_access_token(data={"sub": str(user.id), "username": user.username})
 

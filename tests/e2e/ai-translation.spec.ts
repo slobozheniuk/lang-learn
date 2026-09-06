@@ -2,10 +2,10 @@
  * AI Translation tests
  * Mirrors: tests/mobile/test_ai_translation_mobile.py
  */
-import { test, expect, loginDemoUser } from './fixtures';
+import { test, expect, loginUser } from './fixtures';
 
 test('test_ai_translation_single_word_submission', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Clean existing words
   await page.evaluate(async () => {
@@ -51,7 +51,7 @@ test('test_ai_translation_single_word_submission', async ({ page }) => {
 });
 
 test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Clean existing words
   await page.evaluate(async () => {

@@ -701,55 +701,6 @@ export function App() {
       triggerHaptic('error');
     }
   };
-
-  // Quick Demo Login
-  const handleQuickDemoLogin = async () => {
-    const demoUser = {
-      username: 'demo_student',
-      password: 'demopassword123',
-    };
-
-    try {
-      const res = await loginUser({
-        username_or_email: demoUser.username,
-        password: demoUser.password,
-      });
-      const tok = res.access_token;
-      setApiToken(tok);
-      setToken(tok);
-      const u = await fetchMe();
-      setUser(u);
-      localStorage.setItem('ll_user', JSON.stringify(u));
-      setAuthError(null);
-      setActivePage('lessons');
-      setActiveLesson(null);
-      loadLanguages();
-      await loadProfiles();
-      loadDeck();
-      loadWordlist();
-      loadLessons();
-    } catch {
-      try {
-        const regRes = await registerUser(demoUser);
-        const tok = regRes.token.access_token;
-        setApiToken(tok);
-        setToken(tok);
-        setUser(regRes.user);
-        localStorage.setItem('ll_user', JSON.stringify(regRes.user));
-        setAuthError(null);
-        setActivePage('lessons');
-        setActiveLesson(null);
-        loadLanguages();
-        await loadProfiles();
-        loadDeck();
-        loadWordlist();
-        loadLessons();
-      } catch (regErr: any) {
-        setAuthError(regErr.message || 'Quick demo login failed');
-      }
-    }
-  };
-
   // Logout
   const handleLogout = () => {
     setApiToken(null);
@@ -805,7 +756,6 @@ export function App() {
             onRegTargetLangChange={setRegTargetLang}
             onLoginSubmit={handleLoginSubmit}
             onRegisterSubmit={handleRegisterSubmit}
-            onQuickDemoLogin={handleQuickDemoLogin}
           />
         </main>
       ) : (

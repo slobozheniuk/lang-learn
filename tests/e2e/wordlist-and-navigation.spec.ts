@@ -2,13 +2,13 @@
  * Wordlist & Navigation tests
  * Mirrors: tests/mobile/test_wordlist_and_navigation.py
  */
-import { test, expect, loginDemoUser } from './fixtures';
+import { test, expect, loginUser } from './fixtures';
 
 test('test_cheeseburger_menu_open_and_close', async ({ page }) => {
   // Not visible before login
   await expect(page.locator('#burger-menu-btn')).toHaveCount(0);
 
-  await loginDemoUser(page);
+  await loginUser(page);
 
   const burgerBtn = page.locator('#burger-menu-btn');
   await expect(burgerBtn).toBeVisible();
@@ -44,7 +44,7 @@ test('test_cheeseburger_menu_open_and_close', async ({ page }) => {
 });
 
 test('test_navigation_between_flashcards_and_wordlist', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // No page title badge in header
   await expect(page.locator('#page-title')).toHaveCount(0);
@@ -84,7 +84,7 @@ test('test_navigation_between_flashcards_and_wordlist', async ({ page }) => {
 });
 
 test('test_wordlist_recall_rate_badges_and_color_coding', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Seed 4 words with specific recall rates
   await page.evaluate(async () => {
@@ -179,7 +179,7 @@ test('test_wordlist_recall_rate_badges_and_color_coding', async ({ page }) => {
 });
 
 test('test_wordlist_three_dot_menu_and_delete_word', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Clean existing words
   await page.evaluate(async () => {
@@ -226,7 +226,7 @@ test('test_wordlist_three_dot_menu_and_delete_word', async ({ page }) => {
 });
 
 test('test_wordlist_pagination_controls', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Create 25 words
   await page.evaluate(async () => {
@@ -271,7 +271,7 @@ test('test_wordlist_pagination_controls', async ({ page }) => {
 });
 
 test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Seed 8 words
   await page.evaluate(async () => {
@@ -291,9 +291,6 @@ test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({ page }) 
   await expect(page.locator('#wordlist-view')).toBeVisible();
 
   const cards = page.locator('.word-card');
-  const count = await cards.count();
-  expect(count).toBeGreaterThanOrEqual(5);
-
   const bottomCard = cards.nth(4);
   await expect(bottomCard).toBeVisible();
 
@@ -326,7 +323,7 @@ test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({ page }) 
 });
 
 test('test_wordlist_scroll_container_and_bottom_clearance', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Seed 12 words
   await page.evaluate(async () => {
@@ -344,6 +341,9 @@ test('test_wordlist_scroll_container_and_bottom_clearance', async ({ page }) => 
   await page.locator('#burger-menu-btn').click();
   await page.locator('#nav-link-wordlist').click();
   await expect(page.locator('#wordlist-view')).toBeVisible();
+
+  // Wait for all 12 cards to render before measuring/scrolling
+  await expect(page.locator('.word-card')).toHaveCount(12);
 
   const container = page.locator('.app-container');
   await expect(container).toBeVisible();

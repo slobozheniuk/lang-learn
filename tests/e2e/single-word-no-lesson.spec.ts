@@ -2,12 +2,12 @@
  * Single word submission with no lesson creation
  * Mirrors: tests/mobile/test_single_word_no_lesson_e2e.py
  */
-import { test, expect, loginDemoUser } from './fixtures';
+import { test, expect, loginUser } from './fixtures';
 
 test('test_single_word_submission_creates_no_lesson_e2e', async ({ page }) => {
   // 1. Ensure logged in
   await expect(page.locator('#auth-view')).toBeVisible();
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Clean existing lessons and words
   await page.evaluate(async () => {

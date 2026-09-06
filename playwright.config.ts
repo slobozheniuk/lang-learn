@@ -6,9 +6,9 @@ const TEST_DB = `/tmp/lang-learn-e2e-${Date.now()}.db`;
 
 export default defineConfig({
   testDir: './tests/e2e',
-  testIgnore: ['**/fixtures.ts', '**/global-setup.ts'],
-  fullyParallel: false,
-  workers: 1,
+  testIgnore: ['**/fixtures.ts'],
+  fullyParallel: true,
+  workers: process.env.CI ? 2 : 4,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: 'html',
@@ -30,9 +30,6 @@ export default defineConfig({
       LLM_API_KEY: '',
     },
   },
-
-  // globalSetup only seeds the demo user – the server is already up by this point.
-  globalSetup: './tests/e2e/global-setup.ts',
 
   use: {
     baseURL: `http://127.0.0.1:${TEST_PORT}`,

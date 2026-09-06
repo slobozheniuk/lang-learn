@@ -4,13 +4,13 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { test, expect, loginDemoUser } from './fixtures';
+import { test, expect, loginUser } from './fixtures';
 
 const SCREENSHOTS_DIR = path.resolve('tests/screenshots');
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
 test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Clean existing lessons and words
   await page.evaluate(async () => {
@@ -113,7 +113,7 @@ test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) =>
 });
 
 test('test_interactive_reading_unhighlight_toggle', async ({ page }) => {
-  await loginDemoUser(page);
+  await loginUser(page);
 
   // Create reading lesson via API
   await page.evaluate(async () => {

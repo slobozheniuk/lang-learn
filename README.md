@@ -341,8 +341,8 @@ npx playwright test
 Playwright automatically:
 1. Starts a FastAPI test server on port **8899** with a fresh SQLite database.
 2. Waits for `/health` to return 200.
-3. Seeds the `demo_student` account via the registration API.
-4. Runs the 56 tests (28 scenarios × 2 device projects).
+3. Automatically provisions isolated `test-${workerIndex}` user accounts per parallel worker.
+4. Runs the 56 tests (28 scenarios × 2 device projects) concurrently.
 5. Shuts the test server down after the run.
 
 #### Run a specific file or test
@@ -375,9 +375,8 @@ npx playwright test --debug tests/e2e/mobile-app.spec.ts
 
 | File | Purpose |
 | :--- | :--- |
-| `playwright.config.ts` | Device projects, `webServer` config, global setup hook |
-| `tests/e2e/global-setup.ts` | Seeds `demo_student` user before tests run |
-| `tests/e2e/fixtures.ts` | `loginDemoUser` helper; `page` fixture that clears `localStorage` before each test |
+| `playwright.config.ts` | Device projects, `webServer` config, parallel worker settings |
+| `tests/e2e/fixtures.ts` | Per-worker user isolation fixture, `loginUser` helper, per-test state reset |
 | `tests/e2e/mobile-app.spec.ts` | Layout, auth flow, flashcard UX, SRS buttons, screenshots |
 | `tests/e2e/lessons-and-restart.spec.ts` | Lesson cards, detail view, three-dot menus |
 | `tests/e2e/wordlist-and-navigation.spec.ts` | Burger menu, navigation, wordlist pagination & badges |
