@@ -93,16 +93,6 @@ class LLMProvider(ABC):
     """Provider-agnostic interface for LLM services."""
 
     @abstractmethod
-    async def chunk_text(
-        self,
-        text: str,
-        source_lang: str,
-        target_lang: str,
-    ) -> LLMChunkResponse:
-        """Segment text into linguistic chunks and idioms for interactive learner review."""
-        pass
-
-    @abstractmethod
     async def extract_vocabulary(
         self,
         text: str,

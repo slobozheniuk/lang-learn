@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class Word(Base, TimestampMixin):
     __tablename__ = "words"
     __table_args__ = (
-        UniqueConstraint("language_code", "text", name="uq_lang_word_text"),
+        UniqueConstraint("language_code", "lemma", name="uq_lang_word_lemma"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

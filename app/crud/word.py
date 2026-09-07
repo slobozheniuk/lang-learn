@@ -24,6 +24,16 @@ def get_word_by_text_and_lang(db: Session, text: str, language_code: str) -> Wor
     )
 
 
+def get_word_by_lemma_and_lang(db: Session, lemma: str, language_code: str) -> Word | None:
+    """Look up a word by its canonical lemma (base form) and language."""
+    return db.scalar(
+        select(Word).where(
+            Word.lemma == lemma.strip().lower(),
+            Word.language_code == language_code.lower().strip(),
+        )
+    )
+
+
 def get_words(
     db: Session,
     user_id: int | None = None,
@@ -84,23 +94,31 @@ def get_or_create_word(
     context_phrase: str | None = None,
     audio_url: str | None = None,
 ) -> Word:
-    """Get existing word entry by (language_code, text) or create a new one, skipping duplicates."""
-    clean_text = text.strip()
+    """Get or create a word keyed on (language_code, lemma).
+
+    The canonical ``lemma`` (base/dictionary form) is the lookup key.  If the
+    caller does not supply a lemma the surface ``text`` is used as a fallback
+    so that behaviour for manually-created words (e.g. via the word API) is
+    unchanged.
+
+    ``word.text`` stores the lemma so that the word list always shows the base
+    form.  The original surface text lives only inside lesson ``chunk_data``.
+    """
+    canonical_lemma = (lemma or text).strip().lower()
     clean_lang = language_code.lower().strip()
-    existing = get_word_by_text_and_lang(db, text=clean_text, language_code=clean_lang)
+
+    existing = get_word_by_lemma_and_lang(db, lemma=canonical_lemma, language_code=clean_lang)
     if existing:
         updated = False
-        if lemma and not existing.lemma:
-            existing.lemma = lemma.strip()
-            updated = True
-        if pos and not existing.pos:
-            existing.pos = pos.strip()
-            updated = True
+        # Update any missing enrichment fields without overwriting existing data
         if phonetic and not existing.phonetic:
             existing.phonetic = phonetic.strip()
             updated = True
         if translation and not existing.translation:
             existing.translation = translation.strip()
+            updated = True
+        if pos and not existing.pos:
+            existing.pos = pos.strip()
             updated = True
         if context_phrase and not existing.context_phrase:
             existing.context_phrase = context_phrase.strip()
@@ -111,13 +129,13 @@ def get_or_create_word(
         if updated:
             db.commit()
             db.refresh(existing)
-            logger.info(f"Word updated: id={existing.id}, lang='{existing.language_code}', text='{existing.text}'")
+            logger.info(f"Word updated: id={existing.id}, lang='{existing.language_code}', lemma='{existing.lemma}'")
         return existing
 
     word = Word(
         language_code=clean_lang,
-        text=clean_text,
-        lemma=lemma.strip() if lemma else None,
+        text=canonical_lemma,      # store lemma as display text
+        lemma=canonical_lemma,
         pos=pos.strip() if pos else None,
         phonetic=phonetic.strip() if phonetic else None,
         translation=translation.strip() if translation else None,
@@ -128,7 +146,7 @@ def get_or_create_word(
     db.commit()
     db.refresh(word)
     logger.info(
-        f"Word created: id={word.id}, lang='{word.language_code}', text='{word.text}', translation='{word.translation}'"
+        f"Word created: id={word.id}, lang='{word.language_code}', lemma='{word.lemma}', translation='{word.translation}'"
     )
     return word
 

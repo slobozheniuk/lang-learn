@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.crud.job import get_job
 from app.crud.lesson import get_lesson_by_id
 from app.crud.stats import get_user_word_stats
-from app.crud.word import get_word_by_text_and_lang
+from app.crud.word import get_word_by_lemma_and_lang, get_word_by_text_and_lang
 from app.models.user import User
 from app.services.job_queue import JobQueueService
 from app.services.llm.mock_provider import MockLLMProvider
@@ -31,12 +31,14 @@ async def test_job_queue_short_text_translation_target_word_only(
     assert lesson is None  # Single word pair should NOT create a lesson
     assert len(words) == 1
     target_w = words[0]
+    # word.text and word.lemma now both store the canonical base form
+    assert target_w.lemma == "ephemeral"
     assert target_w.text == "ephemeral"
     assert target_w.language_code == "en"
     assert target_w.translation == "мимолетный"
 
     # Verify reverse source word is NOT created in database
-    source_w = get_word_by_text_and_lang(db_session, text="мимолетный", language_code="ru")
+    source_w = get_word_by_lemma_and_lang(db_session, lemma="мимолетный", language_code="ru")
     assert source_w is None
 
     # Verify UserWordStats created for target word for immediate deck review
@@ -44,6 +46,36 @@ async def test_job_queue_short_text_translation_target_word_only(
     assert stats is not None
     assert stats.user_id == test_user.id
     assert stats.word_id == target_w.id
+
+
+@pytest.mark.asyncio
+async def test_job_queue_lemma_deduplication(
+    db_session: Session, test_user: User
+):
+    """Inflected form and base form of the same word must map to one DB entry."""
+    from app.crud.word import get_or_create_word
+
+    service = JobQueueService(llm_provider=MockLLMProvider())
+
+    # Manually insert 'run' as lemma
+    w1 = get_or_create_word(
+        db_session,
+        language_code="en",
+        text="running",
+        lemma="run",
+        translation="бежать",
+    )
+    # Insert again with the same lemma but different surface text
+    w2 = get_or_create_word(
+        db_session,
+        language_code="en",
+        text="runs",
+        lemma="run",
+        translation="бежит",
+    )
+    # Both must resolve to the same DB row
+    assert w1.id == w2.id, "Inflected forms with the same lemma should deduplicate"
+    assert w1.lemma == "run"
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ from app.schemas.job import TextSubmissionRequest, TextSubmissionResponse
 from app.schemas.lesson import LessonCreate, LessonRead
 from app.schemas.word import WordCreate, WordRead
 from app.services.job_queue import count_sentences, job_queue_service
+from app.services.nlp import nlp_service
 from app.services.word_service import WordService
 
 logger = logging.getLogger("app.api.v1.words")
@@ -24,12 +25,12 @@ async def _prepare_lesson_in_background(
     source_lang: str,
     target_lang: str,
 ) -> None:
-    """Segment raw text into reading chunks in the background and mark lesson ready."""
+    """Segment raw text into reading chunks via spaCy + phrasal verb postprocessing."""
     try:
-        chunk_response = await job_queue_service.llm.chunk_text(
+        chunk_response = await nlp_service.chunk_text(
             text=text,
-            source_lang=source_lang,
-            target_lang=target_lang,
+            language_code=target_lang,
+            llm=job_queue_service.llm,
         )
         with SessionLocal() as session:
             lesson = get_lesson_by_id(session, lesson_id)

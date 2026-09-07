@@ -29,6 +29,7 @@ from app.schemas.lesson import (
 )
 from app.schemas.word import WordRead
 from app.services.job_queue import count_sentences, job_queue_service
+from app.services.nlp import nlp_service
 from app.services.word_service import WordService
 
 router = APIRouter()
@@ -285,10 +286,10 @@ async def chunk_text_endpoint(
             detail="Active learning profile required or source and target languages must be specified.",
         )
 
-    chunk_response = await job_queue_service.llm.chunk_text(
+    chunk_response = await nlp_service.chunk_text(
         text=request.text,
-        source_lang=source_lang,
-        target_lang=target_lang,
+        language_code=target_lang,
+        llm=job_queue_service.llm,
     )
 
     lesson_id = None

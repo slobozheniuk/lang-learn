@@ -2,8 +2,6 @@ import logging
 import re
 from typing import Any
 from app.services.llm.base import (
-    LLMChunkItem,
-    LLMChunkResponse,
     LLMProvider,
     LLMQuizQuestion,
     LLMQuizResponse,
@@ -69,104 +67,46 @@ class MockLLMProvider(LLMProvider):
         "apple", "book", "house", "dog", "sun", "world", "cat", "banana", "cozy", "luminary"
     ]
 
-    KNOWN_IDIOMS = [
-        "look forward to", "run out of", "put up with", "take care of", "in order to", "as well as",
-        "by the way", "get along with", "come across", "break down", "carry on", "hold on",
-        "find out", "set off", "put off", "get off", "pick up", "look after", "give up",
-        "wake up", "turn off", "turn on", "take off", "show up", "call off", "check in",
-        "check out", "fall apart", "get along", "give in", "pass away", "run into", "stand out",
-        "take after", "warm up", "turn out", "point out", "bring up", "work out", "figure out",
-        "catch up", "at first", "so far", "all of a sudden", "once upon a time", "piece of cake"
+    # Common English phrasal / separable verbs used in mock detection
+    KNOWN_PHRASAL_VERBS: list[str] = [
+        "look forward to", "run out of", "put up with", "take care of", "in order to",
+        "get along with", "come across", "break down", "carry on", "find out",
+        "set off", "put off", "get off", "pick up", "look after", "give up",
+        "wake up", "turn off", "turn on", "take off", "show up", "call off",
+        "fall apart", "get along", "give in", "pass away", "run into", "stand out",
+        "take after", "warm up", "turn out", "point out", "bring up", "work out",
+        "figure out", "catch up", "check in", "check out",
     ]
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Minimal completion for mock use.
+
+        For phrasal-verb detection prompts, scan the embedded text for any
+        entries from KNOWN_PHRASAL_VERBS (case-insensitive) and return a JSON
+        array of the matched surface forms.  This gives the mock the same
+        postprocessing behaviour as the real LLM without an API call.
+        """
+        import json as _json
+        prompt_lower = prompt.lower()
+        if "phrasal verb" in prompt_lower or "separable verb" in prompt_lower:
+            # Extract the text after "Text:\n" in the prompt
+            text_section = ""
+            if "Text:\n" in prompt:
+                text_section = prompt.split("Text:\n", 1)[1].strip()
+            else:
+                text_section = prompt
+
+            text_lower = text_section.lower()
+            found: list[str] = []
+            # Sort longest first to match "look forward to" before "look"
+            for phrase in sorted(self.KNOWN_PHRASAL_VERBS, key=len, reverse=True):
+                if phrase in text_lower:
+                    # Find the surface form (preserve original casing)
+                    idx = text_lower.find(phrase)
+                    surface = text_section[idx: idx + len(phrase)]
+                    found.append(surface)
+            return _json.dumps(found)
         return f"Mock response for prompt: {prompt[:50]}"
-
-    async def chunk_text(
-        self,
-        text: str,
-        source_lang: str,
-        target_lang: str,
-    ) -> LLMChunkResponse:
-        cleaned = text.strip()
-        if not cleaned:
-            return LLMChunkResponse(title="Empty Text", chunks=[], raw_text=text)
-
-        # Sort known idioms by length descending to match longest phrase first
-        sorted_idioms = sorted(self.KNOWN_IDIOMS, key=len, reverse=True)
-        idiom_regex_part = "|".join(r"\b" + re.escape(idiom) + r"\b" for idiom in sorted_idioms)
-
-        pattern = re.compile(
-            rf"({idiom_regex_part})|([A-Za-z0-9À-ÿа-яА-ЯёЁ_'-]+)|(\s+)|([^\w\s]+)",
-            re.IGNORECASE,
-        )
-
-        chunks: list[LLMChunkItem] = []
-        chunk_idx = 0
-        first_words: list[str] = []
-
-        for match in pattern.finditer(text):
-            chunk_str = match.group(0)
-            idiom_match = match.group(1)
-            word_match = match.group(2)
-            space_match = match.group(3)
-            punct_match = match.group(4)
-
-            if idiom_match:
-                dict_info = self._lookup(idiom_match.lower(), target_lang)
-                pos = dict_info[1] if dict_info else "phrase"
-                chunks.append(
-                    LLMChunkItem(
-                        id=chunk_idx,
-                        text=chunk_str,
-                        is_selectable=True,
-                        lemma=idiom_match.lower(),
-                        pos=pos,
-                        translation=dict_info[0] if dict_info else None,
-                    )
-                )
-                first_words.append(chunk_str)
-            elif word_match:
-                dict_info = self._lookup(word_match.lower(), target_lang)
-                pos = dict_info[1] if dict_info else "word"
-                chunks.append(
-                    LLMChunkItem(
-                        id=chunk_idx,
-                        text=chunk_str,
-                        is_selectable=True,
-                        lemma=word_match.lower(),
-                        pos=pos,
-                        translation=dict_info[0] if dict_info else None,
-                    )
-                )
-                first_words.append(chunk_str)
-            elif space_match:
-                chunks.append(
-                    LLMChunkItem(
-                        id=chunk_idx,
-                        text=chunk_str,
-                        is_selectable=False,
-                        is_word=False,
-                    )
-                )
-            elif punct_match:
-                chunks.append(
-                    LLMChunkItem(
-                        id=chunk_idx,
-                        text=chunk_str,
-                        is_selectable=False,
-                        is_word=False,
-                    )
-                )
-            chunk_idx += 1
-
-        title = f"Lesson: {' '.join(first_words[:3])}..." if len(first_words) > 3 else (f"Lesson: {first_words[0]}" if first_words else "Text Review")
-
-        return LLMChunkResponse(
-            title=title,
-            chunks=chunks,
-            raw_text=text,
-        )
 
     async def extract_vocabulary(
         self,
