@@ -111,7 +111,16 @@ lang-learn/
 │   ├── conftest.py             # Pytest fixtures and mock DB setups
 │   ├── unit/                   # Unit tests (SRS engine, LLM parser, CRUD)
 │   ├── integration/            # API endpoint integration tests
-│   └── mobile/                 # Mobile / viewport responsiveness tests
+│   └── e2e/                    # Playwright E2E test suite (Mobile Chrome & Safari)
+│       ├── fixtures.ts         # Custom fixtures (auth, worker users, page objects)
+│       ├── pages/              # Page Object Models, components & GRAPH.md
+│       │   ├── BasePage.ts, BaseComponent.ts, index.ts
+│       │   ├── components/     # Header, BottomDock, BurgerMenuDrawer
+│       │   ├── dialogs/        # ProfileSwitcherDropdown
+│       │   ├── AuthPage.ts, LessonsPage.ts, LessonDetailPage.ts
+│       │   ├── FlashcardsPage.ts, WordlistPage.ts, SettingsPage.ts
+│       │   └── GRAPH.md        # Application navigation flowchart & operations catalog
+│       └── *.spec.ts           # Modular page-specific & functional E2E test specs
 ├── logs/                       # Rotating application logs
 ├── lang_learn.db               # Local SQLite database file
 ├── alembic.ini                 # Alembic configuration
@@ -137,3 +146,16 @@ lang-learn/
 3. **Spaced Repetition & Vocabulary Review**:
    - `FlashcardsView.tsx` loads due cards from `/api/v1/review/session`.
    - Card reviews submit ease ratings (1-5) -> `SRSEngine` updates `UserWordStats` (ease factor, interval, next review timestamp).
+
+---
+
+## 4. E2E Testing & Page Object Model (POM) Maintenance
+
+- **Framework**: Playwright with TypeScript (`playwright.config.ts`), configured for mobile targets (`Mobile Chrome – Galaxy S24` and `Mobile Safari – iPhone 13 Pro Max`).
+- **Fixture Architecture**: All page objects and shared components are exposed as fixtures in [`tests/e2e/fixtures.ts`](tests/e2e/fixtures.ts). Direct `page.locator()` or scoped element `.locator()` calls within test specifications are prohibited.
+- **POM Maintenance on Code Changes**:
+  - Whenever frontend UI components, views, dialogs, selectors, or user flows change, keep the Page Object Model (POM) actual by running the `playwright-page-objects` skill (`.agents/skills/playwright-page-objects/SKILL.md`).
+  - Use the skill to crawl/inspect modified views, re-generate or update relevant Page Objects and Components in [`tests/e2e/pages/`](tests/e2e/pages/), and update the navigation graph in [`tests/e2e/pages/GRAPH.md`](tests/e2e/pages/GRAPH.md).
+  - Re-run `npx playwright test` to ensure that all 9 specification suites pass without regression:
+    - Page tests: `auth.spec.ts`, `lessons.spec.ts`, `lesson-detail.spec.ts`, `flashcards.spec.ts`, `wordlist.spec.ts`, `settings.spec.ts`.
+    - Cross-cutting tests: `navigation.spec.ts`, `quick-input.spec.ts`, `mobile-layout.spec.ts`.
