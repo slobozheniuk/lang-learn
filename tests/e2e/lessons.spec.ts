@@ -42,20 +42,7 @@ test.describe('Lessons Dashboard', () => {
   }) => {
     await login();
 
-    // Clean existing words and lessons
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-      const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const l of existingLessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Seed 5 words
     await page.evaluate(async () => {
@@ -113,20 +100,7 @@ test.describe('Lessons Dashboard', () => {
   }) => {
     await login();
 
-    // Clean existing lessons and words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-      const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const l of existingLessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Seed backend lesson
     await page.evaluate(async () => {
@@ -177,20 +151,7 @@ test.describe('Lessons Dashboard', () => {
   }) => {
     await login();
 
-    // Clean existing lessons and words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-      const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const l of existingLessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Seed 4 backend lessons to fill the screen
     await page.evaluate(async () => {

@@ -10,20 +10,7 @@ test.describe('Lesson Detail View', () => {
   }) => {
     await login();
 
-    // Clean existing lessons and words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-      const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const l of existingLessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Seed backend lesson
     await page.evaluate(async () => {
@@ -78,20 +65,7 @@ test.describe('Lesson Detail View', () => {
   }) => {
     await login();
 
-    // Clean existing lessons and words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const lessons = await fetch('/api/v1/lessons/', { headers }).then((r) => r.json()).catch(() => []);
-      for (const l of lessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-      const words = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of words ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Submit text (16 words >= 5 words)
     await expect(dock.input).toBeVisible();
@@ -215,20 +189,6 @@ test.describe('Lesson Detail View', () => {
     await lessonDetailPage.close();
     await lessonsPage.expectLoaded();
 
-    // Clean up test lesson
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const lessons = await fetch('/api/v1/lessons/', { headers }).then((r) => r.json()).catch(() => []);
-      for (const l of lessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-      const words = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of words ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
   });
 
   test('should step through flashcards mode to completion state and restart lesson', async ({
@@ -239,20 +199,7 @@ test.describe('Lesson Detail View', () => {
   }) => {
     await login();
 
-    // Clean existing lessons and words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-      const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const l of existingLessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Seed backend lesson with 2 words
     await page.evaluate(async () => {

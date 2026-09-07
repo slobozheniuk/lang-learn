@@ -10,16 +10,7 @@ test.describe('Wordlist & Vocabulary', () => {
   }) => {
     await login();
 
-    // Clean existing words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Seed 4 words with different recall rates
     await page.evaluate(async () => {
@@ -117,16 +108,7 @@ test.describe('Wordlist & Vocabulary', () => {
   }) => {
     await login();
 
-    // Clean existing words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     const wordToDelete = 'unique_word_to_delete';
     await page.evaluate(async (word) => {

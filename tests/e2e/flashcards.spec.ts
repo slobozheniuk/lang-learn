@@ -15,16 +15,7 @@ test.describe('Flashcards SRS Review', () => {
     await drawer.navigateTo('flashcards');
     await flashcardsPage.expectLoaded();
 
-    // Clean existing words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     await dock.input.fill('ephemeral - мимолетный');
     await dock.btnSend.click();
@@ -60,16 +51,7 @@ test.describe('Flashcards SRS Review', () => {
     await drawer.navigateTo('flashcards');
     await flashcardsPage.expectLoaded();
 
-    // Clean existing words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Spy on speechSynthesis
     await page.evaluate(() => {
@@ -166,16 +148,7 @@ test.describe('Flashcards SRS Review', () => {
     await drawer.navigateTo('flashcards');
     await flashcardsPage.expectLoaded();
 
-    // Clean existing words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     await expect(dock.input).toBeVisible();
     await dock.input.fill('serendipity - счастливая случайность');

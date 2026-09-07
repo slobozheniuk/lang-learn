@@ -113,22 +113,28 @@ async function cleanupUserDatabase(baseURL: string, token: string): Promise<void
   const headers = { Authorization: `Bearer ${token}` };
 
   try {
-    const words = await fetch(`${normalizedBase}/api/v1/words/?limit=100`, { headers })
-      .then((r) => r.json())
-      .catch(() => []);
-    for (const w of words ?? []) {
-      await fetch(`${normalizedBase}/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+    for (let iter = 0; iter < 5; iter++) {
+      const lessons = await fetch(`${normalizedBase}/api/v1/lessons/?limit=100`, { headers })
+        .then((r) => r.json())
+        .catch(() => []);
+      if (!Array.isArray(lessons) || lessons.length === 0) break;
+      for (const l of lessons) {
+        await fetch(`${normalizedBase}/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
+      }
     }
   } catch {
     // Ignore cleanup errors
   }
 
   try {
-    const lessons = await fetch(`${normalizedBase}/api/v1/lessons/?limit=100`, { headers })
-      .then((r) => r.json())
-      .catch(() => []);
-    for (const l of lessons ?? []) {
-      await fetch(`${normalizedBase}/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
+    for (let iter = 0; iter < 5; iter++) {
+      const words = await fetch(`${normalizedBase}/api/v1/words/?limit=100`, { headers })
+        .then((r) => r.json())
+        .catch(() => []);
+      if (!Array.isArray(words) || words.length === 0) break;
+      for (const w of words) {
+        await fetch(`${normalizedBase}/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+      }
     }
   } catch {
     // Ignore cleanup errors
@@ -170,11 +176,22 @@ export async function loginUser(page: Page, user?: WorkerUser): Promise<void> {
 export const test = base.extend<
   {
     login: () => Promise<void>;
+    cleanDatabase: void;
   } & PageFixtures,
   {
     workerUser: WorkerUser;
   }
 >({
+  // Auto fixture: runs before each test to ensure a clean database for the worker user
+  cleanDatabase: [
+    async ({ baseURL, workerUser }, use) => {
+      const base = baseURL ?? `http://127.0.0.1:${process.env.TEST_PORT ?? 8899}`;
+      await cleanupUserDatabase(base, workerUser.token);
+      await use();
+    },
+    { auto: true },
+  ],
+
   // Worker-scoped fixture: ensures the worker's user is registered once per worker process
   workerUser: [
     async ({}, use, workerInfo) => {
@@ -186,12 +203,9 @@ export const test = base.extend<
     { scope: 'worker' },
   ],
 
-  // Test-scoped fixture: cleans up worker DB data & resets localStorage
-  page: async ({ page, baseURL, workerUser }, use) => {
+  // Test-scoped fixture: resets localStorage & navigates to fresh page
+  page: async ({ page, baseURL }, use) => {
     const base = baseURL ?? `http://127.0.0.1:${process.env.TEST_PORT ?? 8899}`;
-
-    // Clean up any words/lessons from prior tests on this worker BEFORE rendering the page
-    await cleanupUserDatabase(base, workerUser.token);
 
     await page.goto(base);
     await page.evaluate(() => localStorage.clear());

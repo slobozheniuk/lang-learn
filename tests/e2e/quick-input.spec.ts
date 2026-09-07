@@ -47,16 +47,7 @@ test.describe('Quick Input & Ingestion', () => {
   }) => {
     await login();
 
-    // Clean existing words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json());
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers });
-      }
-    });
+
 
     await header.openBurgerMenu();
     await drawer.navigateTo('flashcards');
@@ -92,20 +83,7 @@ test.describe('Quick Input & Ingestion', () => {
   }) => {
     await login();
 
-    // Clean existing words and lessons
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existingWords = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json());
-      for (const w of existingWords ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers });
-      }
-      const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json());
-      for (const l of existingLessons ?? []) {
-        await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers });
-      }
-    });
+
 
     await page.evaluate(() => {
       const w = window as any;

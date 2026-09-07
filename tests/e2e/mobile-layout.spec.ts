@@ -76,16 +76,7 @@ test.describe('Mobile Responsive Layout', () => {
   }) => {
     await login();
 
-    // Clean existing words
-    await page.evaluate(async () => {
-      const token = localStorage.getItem('ll_token');
-      if (!token) return;
-      const headers = { Authorization: `Bearer ${token}` };
-      const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
-      for (const w of existing ?? []) {
-        await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
-      }
-    });
+
 
     // Add 12 words so list exceeds viewport height
     await page.evaluate(async () => {
