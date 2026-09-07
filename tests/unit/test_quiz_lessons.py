@@ -178,7 +178,7 @@ def test_submit_text_sentence_count_and_multi_sentence_flag(client: TestClient, 
     token = create_access_token(data={"sub": str(user.id)})
     headers = {"Authorization": f"Bearer {token}"}
 
-    # 1. Single sentence
+    # 1. Single sentence with < 5 words
     resp1 = client.post(
         "/api/v1/words/submit-text",
         headers=headers,
@@ -188,9 +188,12 @@ def test_submit_text_sentence_count_and_multi_sentence_flag(client: TestClient, 
     data1 = resp1.json()
     assert data1["is_multi_sentence"] is False
     assert data1["sentence_count"] == 1
+    assert data1["word_count"] == 2
     assert data1["is_lesson"] is False
+    assert data1["lesson"] is None
+    assert len(data1["words"]) >= 1
 
-    # 2. Multi-sentence (> 1 sentences)
+    # 2. Text with >= 5 words (creates in-progress lesson & extracts words)
     resp2 = client.post(
         "/api/v1/words/submit-text",
         headers=headers,
@@ -200,7 +203,12 @@ def test_submit_text_sentence_count_and_multi_sentence_flag(client: TestClient, 
     data2 = resp2.json()
     assert data2["is_multi_sentence"] is True
     assert data2["sentence_count"] == 3
+    assert data2["word_count"] == 6
+    assert data2["is_lesson"] is True
     assert data2["can_create_lesson"] is True
+    assert data2["lesson_in_progress"] is True
+    assert data2["lesson"] is not None
+    assert len(data2["words"]) >= 1
 
 
 def test_generate_quiz_endpoint(client: TestClient, db_session: Session):

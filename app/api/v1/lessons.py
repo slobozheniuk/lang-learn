@@ -605,8 +605,11 @@ async def create_lesson_endpoint(
         wait=request.wait,
     )
 
+    words_in_text = request.text.strip().split()
+    word_count = len(words_in_text)
     sentence_count = count_sentences(request.text)
     is_multi_sentence = sentence_count > 1
+    should_create_lesson = word_count >= 5
 
     lesson_read = None
     if lesson:
@@ -636,7 +639,9 @@ async def create_lesson_endpoint(
         is_lesson=lesson is not None,
         is_multi_sentence=is_multi_sentence,
         sentence_count=sentence_count,
-        can_create_lesson=is_multi_sentence,
+        word_count=word_count,
+        can_create_lesson=should_create_lesson,
+        lesson_in_progress=should_create_lesson and lesson is None,
         lesson=lesson_read,
         words=words_read,
         error_message=job.error_message,

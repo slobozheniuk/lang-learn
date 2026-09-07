@@ -22,20 +22,17 @@ test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) =>
     }
   });
 
-  // Submit multi-sentence text
+  // Submit text (16 words >= 5 words)
   const dockInput = page.locator('#quick-word-input');
   await expect(dockInput).toBeVisible();
   await dockInput.fill("Yesterday I decided to get off the train and give up junk food. It was a great day.");
   await page.locator('#btn-quick-send').click();
 
-  // Modal appears
-  const modal = page.locator('#multi-sentence-modal');
-  await expect(modal).toBeVisible({ timeout: 10000 });
-
-  // Click Generate Quiz Lesson
-  const btnGenerate = page.locator('#btn-generate-quiz-lesson');
-  await expect(btnGenerate).toBeVisible();
-  await btnGenerate.click();
+  // Lesson card appears in grid without prompt modal
+  const lessonCard = page.locator('.lesson-card').first();
+  await expect(lessonCard).toBeVisible({ timeout: 10000 });
+  await expect(lessonCard).not.toHaveClass(/lesson-card-generating/, { timeout: 15000 });
+  await lessonCard.click();
 
   // Lesson opens in reading mode
   const readingContainer = page.locator('#reading-study-container');

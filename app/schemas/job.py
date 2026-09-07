@@ -42,7 +42,9 @@ class TextSubmissionResponse(BaseModel):
     is_lesson: bool = False
     is_multi_sentence: bool = False
     sentence_count: int = 1
+    word_count: int = 0
     can_create_lesson: bool = False
+    lesson_in_progress: bool = False
     lesson: LessonRead | None = None
     words: list[WordRead] = Field(default_factory=list)
     error_message: str | None = None

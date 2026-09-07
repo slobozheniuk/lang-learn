@@ -33,7 +33,7 @@ def test_submit_text_single_word_creates_flashcard(
     assert word["context_phrase"] is not None
 
 
-def test_submit_text_multi_sentence_returns_flag_no_auto_lesson(
+def test_submit_text_five_or_more_words_creates_in_progress_lesson_and_extracts_words(
     client: TestClient, auth_headers: dict[str, str]
 ):
     multi_text = "The dog barked loudly. The cat ran away into the house!"
@@ -50,11 +50,30 @@ def test_submit_text_multi_sentence_returns_flag_no_auto_lesson(
     assert response.status_code == 201
     data = response.json()
     assert data["status"] == "completed"
-    assert data["is_lesson"] is False
-    assert data["is_multi_sentence"] is True
+    assert data["is_lesson"] is True
     assert data["can_create_lesson"] is True
-    assert data["lesson"] is None
+    assert data["lesson_in_progress"] is True
+    assert data["lesson"] is not None
+    assert data["lesson"]["status"] in ["processing", "ready"]
     assert len(data["words"]) >= 2
+
+    # Under 5 words does NOT create a lesson
+    short_text = "The dog barked loudly"  # 4 words
+    short_res = client.post(
+        "/api/v1/words/submit-text",
+        headers=auth_headers,
+        json={
+            "text": short_text,
+            "source_lang": "ru",
+            "target_lang": "en",
+            "wait": True,
+        },
+    )
+    assert short_res.status_code == 201
+    short_data = short_res.json()
+    assert short_data["is_lesson"] is False
+    assert short_data["lesson"] is None
+    assert len(short_data["words"]) >= 1
 
 
 def test_jobs_submit_and_status_endpoints(

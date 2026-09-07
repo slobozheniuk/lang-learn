@@ -159,7 +159,9 @@ export interface TextSubmissionResponse {
   is_lesson: boolean;
   is_multi_sentence?: boolean;
   sentence_count?: number;
+  word_count?: number;
   can_create_lesson?: boolean;
+  lesson_in_progress?: boolean;
   lesson?: Lesson | null;
   words: Word[];
   error_message?: string | null;

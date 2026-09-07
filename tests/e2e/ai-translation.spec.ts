@@ -77,11 +77,11 @@ test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
 
   await expect(page.locator('#lessons-view')).toBeVisible();
 
-  // 1. Single sentence should NOT create a lesson card
-  const singleSentence = 'The quick brown fox jumps over the lazy dog and rests peacefully';
+  // 1. Text with < 5 words should NOT create a lesson card
+  const shortText = 'quick brown fox';
   const quickInput = page.locator('#quick-word-input');
   await expect(quickInput).toBeVisible();
-  await quickInput.fill(singleSentence);
+  await quickInput.fill(shortText);
 
   await page.locator('#btn-quick-send').click();
   await page.waitForTimeout(500);
@@ -90,16 +90,23 @@ test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
   await expect(page.locator('.lesson-card')).toBeHidden();
   await expect(page.locator('#lessons-empty')).toBeVisible();
 
-  // 2. Multi-sentence text prompts and creates a named reading/quiz lesson
-  const multiSentence = 'The quick brown fox jumps over the lazy dog. It rests peacefully under the shade.';
-  await quickInput.fill(multiSentence);
+  // 2. Text with >= 5 words automatically creates a lesson card without prompting
+  const longText = 'The quick brown fox jumps over the lazy dog. It rests peacefully under the shade.';
+  await quickInput.fill(longText);
   await page.locator('#btn-quick-send').click();
 
-  const modal = page.locator('#multi-sentence-modal');
-  await expect(modal).toBeVisible({ timeout: 10000 });
-  await page.locator('#btn-generate-quiz-lesson').click();
+  // No prompt modal appears
+  await expect(page.locator('#multi-sentence-modal')).toBeHidden();
 
-  // Lesson detail view opens
+  // Lesson card appears in grid
+  const firstCard = page.locator('.lesson-card').first();
+  await expect(firstCard).toBeVisible({ timeout: 10000 });
+
+  // Wait for background lesson generation to complete
+  await expect(firstCard).not.toHaveClass(/lesson-card-generating/, { timeout: 15000 });
+
+  // Lesson card can be opened into lesson detail view
+  await firstCard.click();
   const detailView = page.locator('#lesson-detail-view');
   await expect(detailView).toBeVisible({ timeout: 10000 });
 
@@ -108,7 +115,5 @@ test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
   await expect(closeBtn).toBeVisible();
   await closeBtn.click();
   await expect(page.locator('#lessons-view')).toBeVisible();
-
-  const firstCard = page.locator('.lesson-card').first();
   await expect(firstCard).toBeVisible();
 });

@@ -13,7 +13,6 @@ import {
   deleteLesson,
   submitReviewRating,
   submitText,
-  chunkText,
   fetchLessons,
   fetchProfiles,
 } from './api';
@@ -74,11 +73,6 @@ export function App() {
   const [regTargetLang, setRegTargetLang] = useState('');
 
   const [quickInput, setQuickInput] = useState('');
-  const [multiSentencePrompt, setMultiSentencePrompt] = useState<{
-    text: string;
-    words: Word[];
-  } | null>(null);
-  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState<boolean>(false);
 
   const isAuthenticated = Boolean(token && user);
 
@@ -429,6 +423,21 @@ export function App() {
     }
   }, [isAuthenticated, activePage, loadWordlist, loadLessons, loadDeck]);
 
+  // Poll backend every 5 seconds for lessons in progress of generation
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const hasGenerating = backendLessons.some(
+      (l) => l.status === 'processing' || l.status === 'pending'
+    );
+    if (!hasGenerating) return;
+
+    const intervalId = setInterval(() => {
+      loadLessons();
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [isAuthenticated, backendLessons, loadLessons]);
+
   // Global Keyboard Shortcuts (only when authenticated)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -510,12 +519,13 @@ export function App() {
         });
       }
 
-      // If multi-sentence text submitted (>1 sentences), prompt user to create a lesson from this text
-      if (result.is_multi_sentence || (result.sentence_count !== undefined && result.sentence_count > 1) || result.can_create_lesson) {
-        setMultiSentencePrompt({
-          text: raw,
-          words: result.words || [],
-        });
+      // If a lesson is being prepared or ready, add it to backendLessons
+      if (result.lesson) {
+        setBackendLessons((prev) => [
+          result.lesson!,
+          ...prev.filter((l) => l.id !== result.lesson!.id),
+        ]);
+        triggerHaptic('success');
       }
     } catch (err) {
       console.warn('submitText error, attempting fallback createWord:', err);
@@ -557,44 +567,6 @@ export function App() {
         triggerHaptic('error');
         console.error('Failed to add word:', fallbackErr);
       }
-    }
-  };
-
-  // Start Interactive Reading Lesson from Multi-sentence Prompt
-  const handleGenerateQuizFromPrompt = async () => {
-    if (!multiSentencePrompt) return;
-    setIsGeneratingQuiz(true);
-    try {
-      const { sourceLang, targetLang } = getActiveLanguagePair();
-      const chunkRes = await chunkText({
-        text: multiSentencePrompt.text,
-        source_lang: sourceLang,
-        target_lang: targetLang,
-        create_lesson: true,
-      });
-      triggerHaptic('success');
-      setMultiSentencePrompt(null);
-      await loadLessons();
-
-      const newLesson: Lesson = {
-        id: chunkRes.lesson_id || Date.now(),
-        title: chunkRes.title || 'Reading Lesson',
-        raw_input: multiSentencePrompt.text,
-        status: 'reading',
-        input_type: 'reading',
-        chunk_data: chunkRes,
-        words: [],
-        source_lang: sourceLang,
-        target_lang: targetLang,
-      };
-
-      setActiveLesson(newLesson);
-      setActivePage('lessons');
-    } catch (err) {
-      triggerHaptic('error');
-      console.error('Failed to create reading lesson from text:', err);
-    } finally {
-      setIsGeneratingQuiz(false);
     }
   };
 
@@ -833,47 +805,6 @@ export function App() {
             onClose={() => setIsMenuOpen(false)}
             onNavigate={handleNavigate}
           />
-
-          {/* Multi-sentence Quiz Lesson Generation Modal Prompt */}
-          {multiSentencePrompt && (
-            <div id="multi-sentence-modal" className="modal-backdrop is-open active show" role="dialog" aria-modal="true">
-              <div className="modal-dialog modal-card">
-                <div className="modal-header">
-                  <div className="modal-icon">🎯</div>
-                  <h3 className="modal-title">Create Lesson</h3>
-                  <button
-                    id="btn-close-modal"
-                    className="modal-close-btn"
-                    onClick={() => setMultiSentencePrompt(null)}
-                    aria-label="Close modal"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <p className="modal-body-text">
-                  Do you want to create a lesson from this text?
-                </p>
-                <div className="modal-actions">
-                  <button
-                    id="btn-generate-quiz-lesson"
-                    className="btn btn-primary btn-full"
-                    disabled={isGeneratingQuiz}
-                    onClick={handleGenerateQuizFromPrompt}
-                  >
-                    {isGeneratingQuiz ? '⏳ Generating Quiz with AI...' : '🎯 Generate Quiz Lesson'}
-                  </button>
-                  <button
-                    id="btn-dismiss-quiz-prompt"
-                    className="btn btn-outline btn-full"
-                    disabled={isGeneratingQuiz}
-                    onClick={() => setMultiSentencePrompt(null)}
-                  >
-                    Keep Words Only
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>

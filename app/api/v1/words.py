@@ -1,17 +1,52 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import json
+import logging
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user, get_optional_current_user
 from app.crud.language import get_language_by_code
-from app.database import get_db
+from app.crud.lesson import add_word_to_lesson, create_lesson, get_lesson_by_id
+from app.database import SessionLocal, get_db
 from app.models.user import User
 from app.schemas.job import TextSubmissionRequest, TextSubmissionResponse
-from app.schemas.lesson import LessonRead
+from app.schemas.lesson import LessonCreate, LessonRead
 from app.schemas.word import WordCreate, WordRead
 from app.services.job_queue import count_sentences, job_queue_service
 from app.services.word_service import WordService
 
+logger = logging.getLogger("app.api.v1.words")
 router = APIRouter()
+
+
+async def _prepare_lesson_in_background(
+    lesson_id: int,
+    text: str,
+    source_lang: str,
+    target_lang: str,
+) -> None:
+    """Segment raw text into reading chunks in the background and mark lesson ready."""
+    try:
+        chunk_response = await job_queue_service.llm.chunk_text(
+            text=text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+        )
+        with SessionLocal() as session:
+            lesson = get_lesson_by_id(session, lesson_id)
+            if lesson:
+                lesson.chunk_data = json.dumps(chunk_response.model_dump())
+                if chunk_response.title:
+                    lesson.title = chunk_response.title[:250]
+                lesson.status = "ready"
+                session.commit()
+                logger.info(f"Background lesson generation ready: lesson_id={lesson_id}, title='{lesson.title}'")
+    except Exception as e:
+        logger.error(f"Error preparing lesson {lesson_id} in background: {e}", exc_info=True)
+        with SessionLocal() as session:
+            lesson = get_lesson_by_id(session, lesson_id)
+            if lesson:
+                lesson.status = "failed"
+                session.commit()
 
 
 @router.post(
@@ -22,6 +57,7 @@ router = APIRouter()
 )
 async def submit_text(
     request: TextSubmissionRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TextSubmissionResponse:
@@ -31,7 +67,8 @@ async def submit_text(
             detail="Text cannot be empty.",
         )
 
-    job, lesson, words = await job_queue_service.submit_text(
+    # Always extract vocabulary words & flashcards for SRS study
+    job, _, words = await job_queue_service.submit_text(
         db=db,
         user_id=current_user.id,
         text=request.text,
@@ -40,38 +77,72 @@ async def submit_text(
         wait=request.wait,
     )
 
+    words_in_text = request.text.strip().split()
+    word_count = len(words_in_text)
     sentence_count = count_sentences(request.text)
-    is_multi_sentence = sentence_count > 1
-
-    lesson_read = None
-    if lesson:
-        lesson_words = [WordService.to_read(w, user_id=current_user.id, db=db) for w in words]
-        lesson_read = LessonRead(
-            id=lesson.id,
-            user_id=lesson.user_id,
-            source_lang=lesson.source_lang,
-            target_lang=lesson.target_lang,
-            title=lesson.title,
-            raw_input=lesson.raw_input,
-            input_type=lesson.input_type,
-            status=lesson.status,
-            created_at=lesson.created_at,
-            updated_at=lesson.updated_at,
-            words=lesson_words,
-        )
+    should_create_lesson = word_count >= 5
 
     words_read = [
         WordService.to_read(w, user_id=current_user.id, db=db)
         for w in words
     ]
 
+    lesson_read = None
+    if should_create_lesson:
+        snippet = " ".join(words_in_text[:4])
+        if len(words_in_text) > 4:
+            snippet += "..."
+        lesson_title = f"Lesson: {snippet}"
+        if len(lesson_title) > 250:
+            lesson_title = lesson_title[:250]
+
+        lesson_in = LessonCreate(
+            source_lang=request.source_lang,
+            target_lang=request.target_lang,
+            title=lesson_title,
+            raw_input=request.text,
+            input_type="reading",
+            is_completed=False,
+        )
+        created_lesson = create_lesson(db, user_id=current_user.id, lesson_in=lesson_in, status="processing")
+        for idx, w in enumerate(words):
+            add_word_to_lesson(db, lesson_id=created_lesson.id, word_id=w.id, order_index=idx)
+        db.commit()
+        db.refresh(created_lesson)
+
+        # Queue background chunking
+        background_tasks.add_task(
+            _prepare_lesson_in_background,
+            lesson_id=created_lesson.id,
+            text=request.text,
+            source_lang=request.source_lang,
+            target_lang=request.target_lang,
+        )
+
+        lesson_words = [WordService.to_read(w, user_id=current_user.id, db=db) for w in words]
+        lesson_read = LessonRead(
+            id=created_lesson.id,
+            user_id=created_lesson.user_id,
+            source_lang=created_lesson.source_lang,
+            target_lang=created_lesson.target_lang,
+            title=created_lesson.title,
+            raw_input=created_lesson.raw_input,
+            input_type=created_lesson.input_type,
+            status=created_lesson.status,
+            created_at=created_lesson.created_at,
+            updated_at=created_lesson.updated_at,
+            words=lesson_words,
+        )
+
     return TextSubmissionResponse(
         job_id=job.id,
         status=job.status,
-        is_lesson=lesson is not None,
-        is_multi_sentence=is_multi_sentence,
+        is_lesson=should_create_lesson,
+        is_multi_sentence=sentence_count > 1,
         sentence_count=sentence_count,
-        can_create_lesson=is_multi_sentence,
+        word_count=word_count,
+        can_create_lesson=should_create_lesson,
+        lesson_in_progress=should_create_lesson,
         lesson=lesson_read,
         words=words_read,
         error_message=job.error_message,

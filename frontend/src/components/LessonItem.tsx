@@ -26,9 +26,10 @@ export const LessonItem: React.FC<LessonItemProps> = ({
       ((lesson.quiz_data.questions && lesson.quiz_data.questions.length > 0) ||
         Array.isArray(lesson.quiz_data))
   );
-  const isReading = lesson.status === 'reading' || lesson.input_type === 'reading';
+  const isGenerating = lesson.status === 'processing' || lesson.status === 'pending';
+  const isReading = !isGenerating && (lesson.status === 'reading' || lesson.input_type === 'reading');
   const isRevision = lesson.input_type === 'revision';
-  const icon = isRevision ? '🔄' : isQuiz ? '🎯' : isReading ? '📖' : '📚';
+  const icon = isGenerating ? '⏳' : isRevision ? '🔄' : isQuiz ? '🎯' : isReading ? '📖' : '📚';
 
   // Check card position to dynamically determine if menu should open upwards
   useEffect(() => {
@@ -62,14 +63,18 @@ export const LessonItem: React.FC<LessonItemProps> = ({
     <div
       id={`lesson-card-${lesson.number}`}
       data-lesson-id={lesson.id}
-      className={`lesson-card ${lesson.is_completed || lesson.isComplete ? 'lesson-card-ready' : 'lesson-card-building'} ${isMenuOpen ? 'menu-active' : ''}`}
+      className={`lesson-card ${isGenerating ? 'lesson-card-generating' : (lesson.is_completed || lesson.isComplete ? 'lesson-card-ready' : 'lesson-card-building')} ${isMenuOpen ? 'menu-active' : ''}`}
       role="button"
-      tabIndex={0}
+      tabIndex={isGenerating ? -1 : 0}
       style={isMenuOpen ? { zIndex: 100 } : undefined}
-      aria-label={`Open ${lesson.title} with ${lesson.totalWords} words`}
-      onClick={() => onSelectLesson(lesson)}
+      aria-label={isGenerating ? `${lesson.title} (in progress of generation)` : `Open ${lesson.title} with ${lesson.totalWords} words`}
+      onClick={() => {
+        if (!isGenerating) {
+          onSelectLesson(lesson);
+        }
+      }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if ((e.key === 'Enter' || e.key === ' ') && !isGenerating) {
           e.preventDefault();
           onSelectLesson(lesson);
         }
@@ -82,24 +87,30 @@ export const LessonItem: React.FC<LessonItemProps> = ({
         </div>
         <div className="lesson-card-header-right">
           <div className="lesson-card-badges">
-            {isRevision ? (
-              <span className="lesson-badge badge-revision">Nightly Revision</span>
-            ) : isQuiz ? (
-              <span className="lesson-badge badge-quiz">Quiz</span>
-            ) : isReading ? (
-              <span className="lesson-badge badge-reading">Reading</span>
-            ) : null}
-            <span
-              className={`lesson-badge ${lesson.is_completed ? 'badge-completed' : lesson.isComplete || isReading ? 'badge-ready' : 'badge-progress'}`}
-            >
-              {lesson.is_completed
-                ? '✓ Completed'
-                : isReading
-                ? 'Reading'
-                : lesson.isComplete
-                ? `${lesson.words?.length || 5} words`
-                : `${lesson.totalWords || lesson.words?.length || 0} / 5 words`}
-            </span>
+            {isGenerating ? (
+              <span className="lesson-badge badge-generating">⏳ Generating...</span>
+            ) : (
+              <>
+                {isRevision ? (
+                  <span className="lesson-badge badge-revision">Nightly Revision</span>
+                ) : isQuiz ? (
+                  <span className="lesson-badge badge-quiz">Quiz</span>
+                ) : isReading ? (
+                  <span className="lesson-badge badge-reading">Reading</span>
+                ) : null}
+                <span
+                  className={`lesson-badge ${lesson.is_completed ? 'badge-completed' : lesson.isComplete || isReading ? 'badge-ready' : 'badge-progress'}`}
+                >
+                  {lesson.is_completed
+                    ? '✓ Completed'
+                    : isReading
+                    ? 'Reading'
+                    : lesson.isComplete
+                    ? `${lesson.words?.length || 5} words`
+                    : `${lesson.totalWords || lesson.words?.length || 0} / 5 words`}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Three-dot settings/actions menu */}
@@ -166,14 +177,18 @@ export const LessonItem: React.FC<LessonItemProps> = ({
           <div
             className="lesson-progress-fill"
             style={{
-              width: lesson.is_completed || isReading
+              width: isGenerating
+                ? '50%'
+                : lesson.is_completed || isReading
                 ? '100%'
                 : `${Math.min(100, ((lesson.totalWords || lesson.words?.length || 0) / (lesson.targetCount || 5)) * 100)}%`,
             }}
           />
         </div>
         <span className="lesson-progress-text">
-          {lesson.is_completed
+          {isGenerating
+            ? 'Generating lesson with AI...'
+            : lesson.is_completed
             ? 'Completed ✓'
             : isReading
             ? 'Interactive reading & word selection'
@@ -188,9 +203,9 @@ export const LessonItem: React.FC<LessonItemProps> = ({
       {/* Card Footer CTA */}
       <div className="lesson-card-footer">
         <span className="lesson-action-cta">
-          {isReading ? '▶ Read & Select' : isQuiz ? '▶ Start Quiz' : '▶ Practice Lesson'}
+          {isGenerating ? '⏳ In progress of generation' : isReading ? '▶ Read & Select' : isQuiz ? '▶ Start Quiz' : '▶ Practice Lesson'}
         </span>
-        <span className="lesson-arrow">›</span>
+        <span className="lesson-arrow">{isGenerating ? '⏳' : '›'}</span>
       </div>
     </div>
   );
