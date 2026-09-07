@@ -1,6 +1,31 @@
 import { test as base, expect, Page } from '@playwright/test';
+import {
+  AuthPage,
+  LessonsPage,
+  LessonDetailPage,
+  FlashcardsPage,
+  WordlistPage,
+  SettingsPage,
+  HeaderComponent,
+  BurgerMenuDrawer,
+  BottomDockComponent,
+  ProfileSwitcherDropdown,
+} from './pages';
 
 export { expect };
+
+export interface PageFixtures {
+  authPage: AuthPage;
+  lessonsPage: LessonsPage;
+  lessonDetailPage: LessonDetailPage;
+  flashcardsPage: FlashcardsPage;
+  wordlistPage: WordlistPage;
+  settingsPage: SettingsPage;
+  header: HeaderComponent;
+  drawer: BurgerMenuDrawer;
+  dock: BottomDockComponent;
+  profileSwitcher: ProfileSwitcherDropdown;
+}
 
 export interface WorkerUser {
   username: string;
@@ -145,7 +170,7 @@ export async function loginUser(page: Page, user?: WorkerUser): Promise<void> {
 export const test = base.extend<
   {
     login: () => Promise<void>;
-  },
+  } & PageFixtures,
   {
     workerUser: WorkerUser;
   }
@@ -180,5 +205,37 @@ export const test = base.extend<
     await use(async () => {
       await loginUser(page, workerUser);
     });
+  },
+
+  // Page Object fixtures
+  authPage: async ({ page }, use) => {
+    await use(new AuthPage(page));
+  },
+  lessonsPage: async ({ page }, use) => {
+    await use(new LessonsPage(page));
+  },
+  lessonDetailPage: async ({ page }, use) => {
+    await use(new LessonDetailPage(page));
+  },
+  flashcardsPage: async ({ page }, use) => {
+    await use(new FlashcardsPage(page));
+  },
+  wordlistPage: async ({ page }, use) => {
+    await use(new WordlistPage(page));
+  },
+  settingsPage: async ({ page }, use) => {
+    await use(new SettingsPage(page));
+  },
+  header: async ({ page }, use) => {
+    await use(new HeaderComponent(page));
+  },
+  drawer: async ({ page }, use) => {
+    await use(new BurgerMenuDrawer(page));
+  },
+  dock: async ({ page }, use) => {
+    await use(new BottomDockComponent(page));
+  },
+  profileSwitcher: async ({ page }, use) => {
+    await use(new ProfileSwitcherDropdown(page));
   },
 });
