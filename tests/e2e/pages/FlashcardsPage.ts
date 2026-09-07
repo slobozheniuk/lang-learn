@@ -35,6 +35,8 @@ export class FlashcardsPage extends BasePage {
 
   async flipCard(): Promise<void> {
     await this.flashcard.click();
+    // Wait for the 500ms CSS transform transition to finish
+    await this.page.waitForTimeout(550);
   }
 
   async rateAgain(): Promise<void> {

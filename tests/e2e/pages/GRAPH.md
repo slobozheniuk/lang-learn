@@ -100,7 +100,7 @@ flowchart TD
     - `nextQuizQuestion()`: Advances to the next question or finishes quiz (`#btn-next-quiz-question`).
     - `restartQuiz()`: Retakes the quiz from the completed screen (`#btn-restart-quiz`).
   - **Flashcards Mode**:
-    - `flipCard()`: Flips the 3D flashcard (`#lesson-flashcard`).
+    - `flipCard()`: Flips the 3D flashcard (`#lesson-flashcard`, waits for flip transition).
     - `nextCard()` / `prevCard()`: Navigates through cards in the lesson.
     - `restartFlashcards()`: Restarts flashcard drill from the completed state.
 - **Outgoing Transitions**:
@@ -111,7 +111,7 @@ flowchart TD
 - **File**: [`FlashcardsPage.ts`](./FlashcardsPage.ts)
 - **Description**: SRS (Spaced Repetition System) interactive card review player.
 - **Available Operations**:
-  - `flipCard()`: Flips between front (prompt) and back (translation/context).
+  - `flipCard()`: Flips between front (prompt) and back (translation/context, waits for flip transition).
   - `rateAgain()`: Submits rating "again" (forgot / red ✕, `#btn-srs-wrong`).
   - `rateGood()`: Submits rating "good" (remembered / green ✓, `#btn-srs-correct`).
   - `pronounce()`: Plays audio pronunciation (`#btn-audio`).

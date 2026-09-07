@@ -105,6 +105,8 @@ export class LessonDetailPage extends BasePage {
   // Flashcards Mode Operations
   async flipCard(): Promise<void> {
     await this.flashcard.click();
+    // Wait for the 500ms CSS transform transition to finish
+    await this.page.waitForTimeout(550);
   }
 
   async nextCard(): Promise<void> {
