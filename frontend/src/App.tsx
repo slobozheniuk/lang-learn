@@ -391,12 +391,13 @@ export function App() {
   useEffect(() => {
     (window as any).loadDeck = loadDeck;
     (window as any).loadWordlist = loadWordlist;
+    (window as any).loadLessons = loadLessons;
     (window as any).submitRating = submitRating;
     (window as any).restartDeck = handleRestartDeck;
     (window as any).setActiveLesson = setActiveLesson;
     (window as any).setActivePage = setActivePage;
     (window as any).deleteLesson = handleDeleteLesson;
-  }, [loadDeck, loadWordlist, submitRating, handleRestartDeck, handleDeleteLesson]);
+  }, [loadDeck, loadWordlist, loadLessons, submitRating, handleRestartDeck, handleDeleteLesson]);
 
   // Initial boot
   useEffect(() => {

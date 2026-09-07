@@ -32,10 +32,10 @@ test('test_lessons_is_default_page_on_load', async ({ page }) => {
   await expect(page.locator('#lessons-view')).toBeVisible();
 });
 
-test('test_lesson_cards_chunking_and_progress', async ({ page }) => {
+test('test_vocabulary_words_do_not_create_lesson_cards', async ({ page }) => {
   await loginUser(page);
 
-  // Clean existing words
+  // Clean existing words and lessons
   await page.evaluate(async () => {
     const token = localStorage.getItem('ll_token');
     if (!token) return;
@@ -44,55 +44,13 @@ test('test_lesson_cards_chunking_and_progress', async ({ page }) => {
     for (const w of existing ?? []) {
       await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
     }
-  });
-
-  // Seed 3 words
-  await page.evaluate(async () => {
-    const token = localStorage.getItem('ll_token');
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-    for (let i = 1; i <= 3; i++) {
-      await fetch('/api/v1/words/', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text: `chunk_word_${i}`, translation: `перевод_${i}`, language_code: 'en' }),
-      });
+    const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
+    for (const l of existingLessons ?? []) {
+      await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
     }
   });
 
-  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadWordlist?.());
-  await page.waitForTimeout(300);
-
-  const card1 = page.locator('#lesson-card-1');
-  await expect(card1).toBeVisible();
-  await expect(card1.locator('.lesson-title')).toHaveText('Lesson 1');
-  await expect(card1.locator('.lesson-badge')).toContainText('3 / 5 words');
-  await expect(card1.locator('.lesson-progress-text')).toContainText('3 / 5 words added');
-
-  // Add 2 more words to reach 5
-  await page.evaluate(async () => {
-    const token = localStorage.getItem('ll_token');
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-    for (let i = 4; i <= 5; i++) {
-      await fetch('/api/v1/words/', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text: `chunk_word_${i}`, translation: `перевод_${i}`, language_code: 'en' }),
-      });
-    }
-  });
-
-  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadWordlist?.());
-  await page.waitForTimeout(300);
-
-  await expect(card1.locator('.lesson-badge')).toContainText('5 words');
-  await expect(card1.locator('.lesson-progress-text')).toContainText('Ready to practice');
-  await expect(card1.locator('.lesson-word-pill')).toHaveCount(5);
-});
-
-test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
-  await loginUser(page);
-
-  // Ensure at least 5 words
+  // Seed 5 words
   await page.evaluate(async () => {
     const token = localStorage.getItem('ll_token');
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -100,12 +58,81 @@ test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
       await fetch('/api/v1/words/', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text: `lesson_detail_word_${i}`, translation: `перевод_деталь_${i}`, language_code: 'en' }),
+        body: JSON.stringify({ text: `chunk_word_${i}`, translation: `перевод_${i}`, language_code: 'en' }),
       });
     }
   });
 
-  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadWordlist?.());
+  await page.evaluate(() => {
+    const win = window as unknown as Record<string, unknown>;
+    if (typeof win.loadWordlist === 'function') (win.loadWordlist as () => void)();
+    if (typeof win.loadLessons === 'function') (win.loadLessons as () => void)();
+  });
+  await page.waitForTimeout(300);
+
+  // Adding vocabulary words must NOT create lesson cards
+  await expect(page.locator('.lesson-card')).toBeHidden();
+  await expect(page.locator('#lessons-empty')).toBeVisible();
+
+  // Creating a real backend lesson displays the lesson card
+  await page.evaluate(async () => {
+    const token = localStorage.getItem('ll_token');
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    await fetch('/api/v1/lessons/generate-quiz', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        text: 'apple - яблоко\nbook - книга',
+        title: 'Lesson 1',
+        source_lang: 'ru',
+        target_lang: 'en',
+      }),
+    });
+  });
+
+  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
+  await page.waitForTimeout(300);
+
+  const card1 = page.locator('#lesson-card-1');
+  await expect(card1).toBeVisible();
+  await expect(card1.locator('.lesson-title')).toHaveText('Lesson 1');
+});
+
+test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
+  await loginUser(page);
+
+  // Clean existing lessons and words
+  await page.evaluate(async () => {
+    const token = localStorage.getItem('ll_token');
+    if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
+    for (const w of existing ?? []) {
+      await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+    }
+    const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
+    for (const l of existingLessons ?? []) {
+      await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
+    }
+  });
+
+  // Seed backend lesson
+  await page.evaluate(async () => {
+    const token = localStorage.getItem('ll_token');
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    await fetch('/api/v1/lessons/generate-quiz', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        text: 'apple - яблоко\nbook - книга',
+        title: 'Lesson 1',
+        source_lang: 'ru',
+        target_lang: 'en',
+      }),
+    });
+  });
+
+  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
   // Bottom dock initially visible
@@ -139,24 +166,48 @@ test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
 test('test_lesson_detail_interactive_study_and_completion', async ({ page }) => {
   await loginUser(page);
 
-  // Seed 2 words
+  // Clean existing lessons and words
   await page.evaluate(async () => {
     const token = localStorage.getItem('ll_token');
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-    for (let i = 1; i <= 2; i++) {
-      await fetch('/api/v1/words/', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text: `study_word_${i}`, translation: `перевод_учеба_${i}`, language_code: 'en' }),
-      });
+    if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
+    for (const w of existing ?? []) {
+      await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+    }
+    const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
+    for (const l of existingLessons ?? []) {
+      await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
     }
   });
 
-  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadWordlist?.());
+  // Seed backend lesson with 2 words
+  await page.evaluate(async () => {
+    const token = localStorage.getItem('ll_token');
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    await fetch('/api/v1/lessons/generate-quiz', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        text: 'study_word_1 - перевод_учеба_1\nstudy_word_2 - перевод_учеба_2',
+        title: 'Lesson 1',
+        source_lang: 'ru',
+        target_lang: 'en',
+      }),
+    });
+  });
+
+  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
   await page.locator('#lesson-card-1').click();
   await expect(page.locator('#lesson-detail-view')).toBeVisible();
+
+  // Switch to flashcards study mode
+  const btnCards = page.locator('#btn-mode-cards');
+  if (await btnCards.isVisible()) {
+    await btnCards.click();
+  }
 
   const card = page.locator('#lesson-flashcard');
   await expect(card).toBeVisible();
@@ -266,20 +317,23 @@ test('test_lesson_three_dot_menu_and_delete_lesson', async ({ page }) => {
     }
   });
 
-  // Create 3 words
+  // Seed backend lesson
   await page.evaluate(async () => {
     const token = localStorage.getItem('ll_token');
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-    for (let i = 1; i <= 3; i++) {
-      await fetch('/api/v1/words/', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text: `lesson_del_word_${i}`, translation: `перевод_дел_${i}`, language_code: 'en' }),
-      });
-    }
+    await fetch('/api/v1/lessons/generate-quiz', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        text: 'apple - яблоко\nbook - книга',
+        title: 'Lesson 1',
+        source_lang: 'ru',
+        target_lang: 'en',
+      }),
+    });
   });
 
-  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadWordlist?.());
+  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
   const card = page.locator('#lesson-card-1');
@@ -309,20 +363,40 @@ test('test_lesson_three_dot_menu_and_delete_lesson', async ({ page }) => {
 test('test_lesson_three_dot_menu_flip_up_and_outside_click', async ({ page }) => {
   await loginUser(page);
 
-  // Seed 20 words (4 lessons) to fill the screen
+  // Clean existing lessons and words
+  await page.evaluate(async () => {
+    const token = localStorage.getItem('ll_token');
+    if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
+    for (const w of existing ?? []) {
+      await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers }).catch(() => {});
+    }
+    const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json()).catch(() => []);
+    for (const l of existingLessons ?? []) {
+      await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers }).catch(() => {});
+    }
+  });
+
+  // Seed 4 backend lessons to fill the screen
   await page.evaluate(async () => {
     const token = localStorage.getItem('ll_token');
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-    for (let i = 1; i <= 20; i++) {
-      await fetch('/api/v1/words/', {
+    for (let i = 1; i <= 4; i++) {
+      await fetch('/api/v1/lessons/generate-quiz', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text: `flip_lesson_word_${i}`, translation: `перевод_флип_${i}`, language_code: 'en' }),
+        body: JSON.stringify({
+          text: `flip_word_${i} - перевод_флип_${i}`,
+          title: `Lesson ${i}`,
+          source_lang: 'ru',
+          target_lang: 'en',
+        }),
       });
     }
   });
 
-  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadWordlist?.());
+  await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
   const card = page.locator('#lesson-card-3');

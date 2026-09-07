@@ -53,52 +53,62 @@ test('test_ai_translation_single_word_submission', async ({ page }) => {
 test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
   await loginUser(page);
 
-  // Clean existing words
+  // Clean existing words and lessons
   await page.evaluate(async () => {
     const token = localStorage.getItem('ll_token');
+    if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
-    const existing = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json());
-    for (const w of existing ?? []) {
+    const existingWords = await fetch('/api/v1/words/?limit=100', { headers }).then((r) => r.json());
+    for (const w of existingWords ?? []) {
       await fetch(`/api/v1/words/${w.id}`, { method: 'DELETE', headers });
+    }
+    const existingLessons = await fetch('/api/v1/lessons/?limit=100', { headers }).then((r) => r.json());
+    for (const l of existingLessons ?? []) {
+      await fetch(`/api/v1/lessons/${l.id}`, { method: 'DELETE', headers });
     }
   });
 
+  await page.evaluate(() => {
+    const win = window as unknown as Record<string, unknown>;
+    if (typeof win.loadWordlist === 'function') (win.loadWordlist as () => void)();
+    if (typeof win.loadLessons === 'function') (win.loadLessons as () => void)();
+  });
+  await page.waitForTimeout(300);
+
   await expect(page.locator('#lessons-view')).toBeVisible();
 
-  const longSentence = 'The quick brown fox jumps over the lazy dog and rests peacefully';
+  // 1. Single sentence should NOT create a lesson card
+  const singleSentence = 'The quick brown fox jumps over the lazy dog and rests peacefully';
   const quickInput = page.locator('#quick-word-input');
   await expect(quickInput).toBeVisible();
-  await quickInput.fill(longSentence);
+  await quickInput.fill(singleSentence);
 
   await page.locator('#btn-quick-send').click();
   await page.waitForTimeout(500);
 
-  const lessonsGrid = page.locator('#lessons-grid');
-  await expect(lessonsGrid).toBeVisible();
+  await expect(page.locator('#multi-sentence-modal')).toBeHidden();
+  await expect(page.locator('.lesson-card')).toBeHidden();
+  await expect(page.locator('#lessons-empty')).toBeVisible();
 
-  const firstCard = page.locator('.lesson-card').first();
-  await expect(firstCard).toBeVisible();
-  await expect(firstCard.locator('.lesson-title')).toContainText('Lesson');
-  await expect(firstCard.locator('.lesson-badge')).toContainText('words');
+  // 2. Multi-sentence text prompts and creates a named reading/quiz lesson
+  const multiSentence = 'The quick brown fox jumps over the lazy dog. It rests peacefully under the shade.';
+  await quickInput.fill(multiSentence);
+  await page.locator('#btn-quick-send').click();
 
-  const pills = firstCard.locator('.lesson-word-pill');
-  await expect(pills.first()).toBeVisible();
-  expect(await pills.count()).toBeGreaterThanOrEqual(1);
+  const modal = page.locator('#multi-sentence-modal');
+  await expect(modal).toBeVisible({ timeout: 10000 });
+  await page.locator('#btn-generate-quiz-lesson').click();
 
-  // Open lesson detail
-  await firstCard.click();
+  // Lesson detail view opens
   const detailView = page.locator('#lesson-detail-view');
-  await expect(detailView).toBeVisible();
+  await expect(detailView).toBeVisible({ timeout: 10000 });
 
-  const lessonCard = page.locator('#lesson-flashcard');
-  await expect(lessonCard).toBeVisible();
-
-  await lessonCard.click();
-  await expect(lessonCard).toHaveClass(/is-flipped/);
-
-  // Close lesson detail
+  // Close lesson detail to view lesson card in grid
   const closeBtn = page.locator('#btn-close-lesson');
   await expect(closeBtn).toBeVisible();
   await closeBtn.click();
   await expect(page.locator('#lessons-view')).toBeVisible();
+
+  const firstCard = page.locator('.lesson-card').first();
+  await expect(firstCard).toBeVisible();
 });

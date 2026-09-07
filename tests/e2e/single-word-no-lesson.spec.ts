@@ -48,6 +48,7 @@ test('test_single_word_submission_creates_no_lesson_e2e', async ({ page }) => {
   await page.waitForTimeout(500);
 
   // 3. Verify no backend lesson was created
+  await expect(page.locator('.lesson-card')).toBeHidden();
   const backendLessonsCount = await page.evaluate(async () => {
     const token = localStorage.getItem('ll_token');
     const headers = { Authorization: `Bearer ${token}` };
