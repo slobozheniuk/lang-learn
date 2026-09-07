@@ -1,6 +1,43 @@
 import { test, expect } from './fixtures';
 
 test.describe('Lessons Dashboard', () => {
+  test('should render empty lessons dashboard layout', async ({ page, login, lessonsPage }) => {
+    await login();
+    await lessonsPage.expectLoaded();
+    await lessonsPage.expectEmpty();
+    await expect(page).toHaveScreenshot();
+  });
+
+  test('should render populated lessons dashboard with lesson cards', async ({
+    page,
+    login,
+    lessonsPage,
+  }) => {
+    await login();
+
+    await page.evaluate(async () => {
+      const token = localStorage.getItem('ll_token');
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      await fetch('/api/v1/lessons/generate-quiz', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          text: 'apple - яблоко\nbook - книга',
+          title: 'Lesson 1',
+          source_lang: 'ru',
+          target_lang: 'en',
+        }),
+      });
+    });
+
+    await page.evaluate(() => (window as any).loadLessons?.());
+    await page.waitForTimeout(300);
+
+    const card1 = lessonsPage.getLessonCard(1);
+    await expect(card1).toBeVisible();
+    await expect(page).toHaveScreenshot();
+  });
+
   test('should display empty state when user has no lessons on default landing', async ({
     login,
     authPage,

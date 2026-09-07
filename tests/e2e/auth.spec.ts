@@ -1,6 +1,19 @@
 import { test, expect } from './fixtures';
 
 test.describe('Authentication Page', () => {
+  test('should render login form layout', async ({ page, authPage }) => {
+    await authPage.expectLoaded();
+    await expect(authPage.formLogin).toBeVisible();
+    await expect(page).toHaveScreenshot();
+  });
+
+  test('should render registration form layout', async ({ page, authPage }) => {
+    await authPage.expectLoaded();
+    await authPage.switchTab('register');
+    await expect(authPage.formRegister).toBeVisible();
+    await expect(page).toHaveScreenshot();
+  });
+
   test('should toggle between Login and Register tabs and complete sign-in / sign-out flow', async ({
     authPage,
     header,

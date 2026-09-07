@@ -45,6 +45,8 @@ test.describe('Lesson Detail View', () => {
     // Bottom dock hidden
     await dock.expectHidden();
 
+    await expect(page).toHaveScreenshot();
+
     // Close button visible
     await expect(lessonDetailPage.btnClose).toBeVisible();
     expect(await lessonDetailPage.btnClose.innerText()).toContain('✕');
@@ -112,8 +114,9 @@ test.describe('Lesson Detail View', () => {
     // Transition to Quiz mode
     await expect(lessonDetailPage.quizContainer).toBeVisible({ timeout: 15000 });
     await expect(lessonDetailPage.btnModeQuiz).toHaveClass(/active/);
+    await expect(lessonDetailPage.readingContainer).not.toBeVisible();
 
-    // Answer quiz question
+    await expect(page).toHaveScreenshot();
     const option0 = lessonDetailPage.getQuizOption(0);
     await expect(option0).toBeVisible();
     await option0.click();
@@ -230,6 +233,7 @@ test.describe('Lesson Detail View', () => {
 
     await expect(lessonDetailPage.flashcard).toBeVisible();
     await expect(lessonDetailPage.flashcard).not.toHaveClass(/is-flipped/);
+    await expect(page).toHaveScreenshot();
     await lessonDetailPage.flipCard();
     await expect(lessonDetailPage.flashcard).toHaveClass(/is-flipped/);
 

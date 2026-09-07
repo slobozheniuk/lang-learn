@@ -1,6 +1,23 @@
 import { test, expect } from './fixtures';
 
 test.describe('Flashcards SRS Review', () => {
+  test('should display empty review state when no cards are due', async ({
+    page,
+    login,
+    header,
+    drawer,
+    flashcardsPage,
+  }) => {
+    await login();
+
+    await header.openBurgerMenu();
+    await drawer.navigateTo('flashcards');
+    await flashcardsPage.expectLoaded();
+
+    await expect(flashcardsPage.emptyState).toBeVisible();
+    await expect(page).toHaveScreenshot();
+  });
+
   test('should flip review card front-to-back and back-to-front on click', async ({
     page,
     login,

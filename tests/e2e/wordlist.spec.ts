@@ -1,6 +1,23 @@
 import { test, expect } from './fixtures';
 
 test.describe('Wordlist & Vocabulary', () => {
+  test('should render empty wordlist layout when no words exist', async ({
+    page,
+    login,
+    header,
+    drawer,
+    wordlistPage,
+  }) => {
+    await login();
+
+    await header.openBurgerMenu();
+    await drawer.navigateTo('wordlist');
+    await wordlistPage.expectLoaded();
+
+    await wordlistPage.expectEmpty();
+    await expect(page).toHaveScreenshot();
+  });
+
   test('should display color-coded recall rate badges and sort words by recall rate', async ({
     page,
     login,
@@ -66,6 +83,8 @@ test.describe('Wordlist & Vocabulary', () => {
     await expect(cardYellow).toBeVisible();
     await expect(cardGreen).toBeVisible();
     await expect(cardPerfect).toBeVisible();
+
+    await expect(page).toHaveScreenshot();
 
     await expect(wordlistPage.getCardRecallBadge(cardRed)).toHaveClass(/badge-red/);
     await expect(wordlistPage.getCardRecallBadge(cardRed)).toHaveText('0%');

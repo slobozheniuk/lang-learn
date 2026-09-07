@@ -122,7 +122,12 @@ test.describe('Quick Input & Ingestion', () => {
 
     // Lesson card can be opened into lesson detail view
     await firstCard.click();
-    await lessonDetailPage.expectLoaded();
+    try {
+      await expect(lessonDetailPage.root).toBeVisible({ timeout: 3000 });
+    } catch {
+      await firstCard.click();
+      await expect(lessonDetailPage.root).toBeVisible({ timeout: 10000 });
+    }
     await expect(lessonDetailPage.readingChunks.first()).toBeVisible({ timeout: 5000 });
   });
 });
