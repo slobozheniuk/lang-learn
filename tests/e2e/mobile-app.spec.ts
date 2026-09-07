@@ -2,41 +2,49 @@
  * Mobile App Layout & Core UI tests
  * Mirrors: tests/mobile/test_mobile_app.py
  */
-import { test, expect, loginUser } from './fixtures';
+import { test, expect } from './fixtures';
 
-test('test_mobile_layout_and_fixed_elements', async ({ page }) => {
+test('test_mobile_layout_and_fixed_elements', async ({
+  page,
+  login,
+  authPage,
+  header,
+  drawer,
+  dock,
+  lessonsPage,
+  flashcardsPage,
+  wordlistPage,
+}) => {
   // Unauthenticated state checks
-  await expect(page.locator('#auth-view')).toBeVisible();
-  await expect(page.locator('#login-form')).toBeVisible();
-  await expect(page.locator('#burger-menu-btn')).toHaveCount(0);
-  await expect(page.locator('#burger-menu-drawer')).toHaveCount(0);
-  await expect(page.locator('.bottom-dock')).toHaveCount(0);
-  await expect(page.locator('#lessons-view')).toHaveCount(0);
-  await expect(page.locator('#flashcards-view')).toHaveCount(0);
-  await expect(page.locator('#wordlist-view')).toHaveCount(0);
+  await authPage.expectLoaded();
+  await expect(authPage.formLogin).toBeVisible();
+  await expect(header.btnBurger).toHaveCount(0);
+  await expect(drawer.root).toHaveCount(0);
+  await expect(dock.root).toHaveCount(0);
+  await expect(lessonsPage.root).toHaveCount(0);
+  await expect(flashcardsPage.root).toHaveCount(0);
+  await expect(wordlistPage.root).toHaveCount(0);
 
-  await loginUser(page);
+  await login();
 
   // Header is at y=0
-  const header = page.locator('.app-header');
-  await expect(header).toBeVisible();
-  const headerBox = await header.boundingBox();
+  await header.expectVisible();
+  const headerBox = await header.root.boundingBox();
   expect(headerBox).not.toBeNull();
   expect(headerBox!.y).toBe(0);
 
-  await expect(page.locator('#burger-menu-btn')).toBeVisible();
+  await expect(header.btnBurger).toBeVisible();
 
   // Bottom dock is flush at viewport bottom
-  const bottomDock = page.locator('.bottom-dock');
-  await expect(bottomDock).toBeVisible();
-  const dockBox = await bottomDock.boundingBox();
+  await dock.expectVisible();
+  const dockBox = await dock.root.boundingBox();
   expect(dockBox).not.toBeNull();
   const viewportSize = page.viewportSize();
   expect(viewportSize).not.toBeNull();
   expect(Math.abs(dockBox!.y + dockBox!.height - viewportSize!.height)).toBeLessThan(2);
 
   // Bottom dock is not fixed positioned
-  const dockPosition = await bottomDock.evaluate((el) => window.getComputedStyle(el).position);
+  const dockPosition = await dock.root.evaluate((el) => window.getComputedStyle(el).position);
   expect(dockPosition).not.toBe('fixed');
   expect(['static', 'relative']).toContain(dockPosition);
 
@@ -61,93 +69,105 @@ test('test_mobile_layout_and_fixed_elements', async ({ page }) => {
   await expect(page).toHaveScreenshot();
 });
 
-test('test_auth_view_tabs_and_flow', async ({ page }) => {
-  const authView = page.locator('#auth-view');
-  await expect(authView).toBeVisible();
-  await expect(page.locator('#login-form')).toBeVisible();
+test('test_auth_view_tabs_and_flow', async ({
+  login,
+  authPage,
+  header,
+  lessonsPage,
+  settingsPage,
+  dock,
+}) => {
+  await authPage.expectLoaded();
+  await expect(authPage.formLogin).toBeVisible();
 
   // Switch to Register tab
-  const tabRegister = page.locator('#tab-register');
-  await expect(tabRegister).toBeVisible();
-  await tabRegister.click();
-  await expect(page.locator('#register-form')).toBeVisible();
-  await expect(page.locator('#login-form')).not.toBeVisible();
+  await authPage.switchTab('register');
+  await expect(authPage.formRegister).toBeVisible();
+  await expect(authPage.formLogin).not.toBeVisible();
 
   // Switch back to Sign In
-  const tabLogin = page.locator('#tab-login');
-  await expect(tabLogin).toBeVisible();
-  await tabLogin.click();
-  await expect(page.locator('#login-form')).toBeVisible();
-  await expect(page.locator('#register-form')).not.toBeVisible();
+  await authPage.switchTab('login');
+  await expect(authPage.formLogin).toBeVisible();
+  await expect(authPage.formRegister).not.toBeVisible();
 
   // Sign In with credentials
   const username = `test-${test.info().workerIndex}`;
-  await page.locator('#login-identifier').fill(username);
-  await page.locator('#login-password').fill(username);
-  await page.locator('#btn-login-submit').click();
+  await authPage.login(username, username);
 
-  await expect(page.locator('#btn-settings')).toBeVisible();
-  await expect(page.locator('#lessons-view')).toBeVisible();
-  await expect(page.locator('#auth-view')).toHaveCount(0);
-  await expect(page.locator('#burger-menu-btn')).toBeVisible();
+  await expect(header.btnSettings).toBeVisible();
+  await lessonsPage.expectLoaded();
+  await authPage.expectHidden();
+  await expect(header.btnBurger).toBeVisible();
 
   // Navigate to Settings and Sign Out
-  await page.locator('#btn-settings').click();
-  await expect(page.locator('#settings-view')).toBeVisible();
+  await header.openSettings();
+  await settingsPage.expectLoaded();
 
-  const btnLogout = page.locator('#btn-logout');
-  await expect(btnLogout).toBeVisible();
-  await btnLogout.click();
+  await expect(settingsPage.btnLogout).toBeVisible();
+  await settingsPage.logout();
 
   // Back to unauthenticated state
-  await expect(page.locator('#auth-view')).toBeVisible();
-  await expect(page.locator('#login-form')).toBeVisible();
-  await expect(page.locator('#burger-menu-btn')).toHaveCount(0);
-  await expect(page.locator('#lessons-view')).toHaveCount(0);
-  await expect(page.locator('.bottom-dock')).toHaveCount(0);
+  await authPage.expectLoaded();
+  await expect(authPage.formLogin).toBeVisible();
+  await expect(header.btnBurger).toHaveCount(0);
+  await expect(lessonsPage.root).toHaveCount(0);
+  await expect(dock.root).toHaveCount(0);
 });
 
-test('test_card_flip_front_to_back_and_reverse', async ({ page }) => {
-  await loginUser(page);
+test('test_card_flip_front_to_back_and_reverse', async ({
+  page,
+  login,
+  header,
+  drawer,
+  dock,
+  flashcardsPage,
+}) => {
+  await login();
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
-  if (await page.locator('#empty-state').isVisible()) {
-    await page.locator('#quick-word-input').fill('luminary - светило');
-    await page.locator('#btn-quick-send').click();
+  if (await flashcardsPage.emptyState.isVisible()) {
+    await dock.input.fill('luminary - светило');
+    await dock.btnSend.click();
     await page.waitForTimeout(400);
-    await expect(page.locator('#card-word')).toBeVisible();
+    await expect(flashcardsPage.cardWord).toBeVisible();
   }
 
-  const card = page.locator('#flashcard');
-  await expect(card).toBeVisible();
-  await expect(card).not.toHaveClass(/(is-flipped|flipped)/);
+  await expect(flashcardsPage.flashcard).toBeVisible();
+  await expect(flashcardsPage.flashcard).not.toHaveClass(/(is-flipped|flipped)/);
 
   // Flip front -> back
-  await card.click();
-  await expect(card).toHaveClass(/(is-flipped|flipped)/);
+  await flashcardsPage.flipCard();
+  await expect(flashcardsPage.flashcard).toHaveClass(/(is-flipped|flipped)/);
 
-  const translation = page.locator('#card-translation');
-  await expect(translation).toBeVisible();
-  const translationText = await translation.innerText();
+  await expect(flashcardsPage.cardTranslation).toBeVisible();
+  const translationText = await flashcardsPage.cardTranslation.innerText();
   expect(translationText.trim().length).toBeGreaterThan(0);
 
   // Flip back -> front
-  await card.click();
-  await expect(card).not.toHaveClass(/(is-flipped|flipped)/);
-  await expect(page.locator('#card-word')).toBeVisible();
+  await flashcardsPage.flipCard();
+  await expect(flashcardsPage.flashcard).not.toHaveClass(/(is-flipped|flipped)/);
+  await expect(flashcardsPage.cardWord).toBeVisible();
 });
 
-test('test_sound_button_triggers_speech_synthesis', async ({ page, browserName }) => {
+test('test_sound_button_triggers_speech_synthesis', async ({
+  page,
+  browserName,
+  login,
+  header,
+  drawer,
+  dock,
+  flashcardsPage,
+}) => {
   // Web Speech API is unavailable in Playwright's headless WebKit — skip on Safari.
   test.skip(browserName === 'webkit', 'speechSynthesis not available in headless WebKit');
-  await loginUser(page);
+  await login();
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
   // Clean existing words
   await page.evaluate(async () => {
@@ -181,14 +201,13 @@ test('test_sound_button_triggers_speech_synthesis', async ({ page, browserName }
     }
   });
 
-  await page.locator('#quick-word-input').fill('sonder - осознание');
-  await page.locator('#btn-quick-send').click();
+  await dock.input.fill('sonder - осознание');
+  await dock.btnSend.click();
   await page.waitForTimeout(400);
-  await expect(page.locator('#card-word')).toBeVisible();
+  await expect(flashcardsPage.cardWord).toBeVisible();
 
-  const btnAudio = page.locator('#btn-audio');
-  await expect(btnAudio).toBeVisible();
-  await btnAudio.click();
+  await expect(flashcardsPage.btnAudio).toBeVisible();
+  await flashcardsPage.pronounce();
 
   const spoken = await page.evaluate(() => (window as unknown as Record<string, unknown>).__spokenUtterances as Array<{text: string; lang: string}>);
   expect(spoken.length).toBeGreaterThanOrEqual(1);
@@ -196,52 +215,65 @@ test('test_sound_button_triggers_speech_synthesis', async ({ page, browserName }
   expect(spoken[spoken.length - 1].lang.toLowerCase()).toContain('en');
 });
 
-test('test_srs_buttons_submission_and_no_sticky_focus', async ({ page }) => {
-  await loginUser(page);
+test('test_srs_buttons_submission_and_no_sticky_focus', async ({
+  page,
+  login,
+  header,
+  drawer,
+  dock,
+  flashcardsPage,
+}) => {
+  await login();
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
-  await page.locator('#quick-word-input').fill('apple - яблоко');
-  await page.locator('#btn-quick-send').click();
+  await dock.input.fill('apple - яблоко');
+  await dock.btnSend.click();
   await page.waitForTimeout(300);
 
-  await page.locator('#quick-word-input').fill('banana - банан');
-  await page.locator('#btn-quick-send').click();
+  await dock.input.fill('banana - банан');
+  await dock.btnSend.click();
   await page.waitForTimeout(300);
 
   // Flip card
-  await page.locator('#flashcard').click();
-  await expect(page.locator('#flashcard')).toHaveClass(/is-flipped/);
+  await flashcardsPage.flipCard();
+  await expect(flashcardsPage.flashcard).toHaveClass(/is-flipped/);
 
-  const btnCorrect = page.locator('#btn-srs-correct');
-  const btnWrong = page.locator('#btn-srs-wrong');
-  await expect(btnCorrect).toBeVisible();
-  await expect(btnWrong).toBeVisible();
+  await expect(flashcardsPage.btnGood).toBeVisible();
+  await expect(flashcardsPage.btnAgain).toBeVisible();
 
-  await btnCorrect.click();
+  await flashcardsPage.rateGood();
 
-  const isActiveCorrect = await btnCorrect.evaluate((el) => document.activeElement === el);
+  const isActiveCorrect = await flashcardsPage.btnGood.evaluate((el) => document.activeElement === el);
   expect(isActiveCorrect).toBeFalsy();
 
   await page.waitForTimeout(400);
 
-  if (await page.locator('#flashcard').isVisible()) {
-    await page.locator('#flashcard').click();
-    await btnWrong.click();
-    const isActiveWrong = await btnWrong.evaluate((el) => document.activeElement === el);
+  if (await flashcardsPage.flashcard.isVisible()) {
+    await flashcardsPage.flipCard();
+    await flashcardsPage.rateAgain();
+    const isActiveWrong = await flashcardsPage.btnAgain.evaluate((el) => document.activeElement === el);
     expect(isActiveWrong).toBeFalsy();
   }
 });
 
-test('test_word_addition_and_flashcard_display', async ({ page }) => {
-  await expect(page.locator('#auth-view')).toBeVisible();
-  await loginUser(page);
+test('test_word_addition_and_flashcard_display', async ({
+  page,
+  login,
+  authPage,
+  header,
+  drawer,
+  dock,
+  flashcardsPage,
+}) => {
+  await authPage.expectLoaded();
+  await login();
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
   // Clean existing words
   await page.evaluate(async () => {
@@ -254,64 +286,63 @@ test('test_word_addition_and_flashcard_display', async ({ page }) => {
     }
   });
 
-  const quickInput = page.locator('#quick-word-input');
-  await expect(quickInput).toBeVisible();
-  await quickInput.fill('serendipity - счастливая случайность');
+  await expect(dock.input).toBeVisible();
+  await dock.input.fill('serendipity - счастливая случайность');
 
-  const btnSend = page.locator('#btn-quick-send');
-  await expect(btnSend).toBeEnabled();
-  await btnSend.click();
+  await expect(dock.btnSend).toBeEnabled();
+  await dock.btnSend.click();
   await page.waitForTimeout(400);
 
+  // Toast check: no substitute in POM, direct check retained
   await expect(page.locator('.toast')).toHaveCount(0);
-  await expect(page.locator('#card-word')).toBeVisible();
-  await expect(quickInput).toHaveValue('');
-  await expect(page.locator('#empty-state')).not.toBeVisible();
+  await expect(flashcardsPage.cardWord).toBeVisible();
+  await expect(dock.input).toHaveValue('');
+  await expect(flashcardsPage.emptyState).not.toBeVisible();
 
   await expect(page).toHaveScreenshot();
 });
 
-test('test_flashcard_flip_and_srs_buttons_ui', async ({ page }) => {
-  await loginUser(page);
+test('test_flashcard_flip_and_srs_buttons_ui', async ({
+  page,
+  login,
+  header,
+  drawer,
+  dock,
+  flashcardsPage,
+}) => {
+  await login();
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
-  if (await page.locator('#empty-state').isVisible()) {
-    await page.locator('#quick-word-input').fill('ephemeral - мимолетный');
-    await page.locator('#btn-quick-send').click();
-    await expect(page.locator('#card-word')).toHaveText('ephemeral');
+  if (await flashcardsPage.emptyState.isVisible()) {
+    await dock.input.fill('ephemeral - мимолетный');
+    await dock.btnSend.click();
+    await expect(flashcardsPage.cardWord).toHaveText('ephemeral');
   }
 
-  const card = page.locator('#flashcard');
-  await expect(card).toBeVisible();
-  await expect(card).not.toHaveClass(/is-flipped/);
+  await expect(flashcardsPage.flashcard).toBeVisible();
+  await expect(flashcardsPage.flashcard).not.toHaveClass(/is-flipped/);
 
-  await card.click();
-  await expect(card).toHaveClass(/is-flipped/);
+  await flashcardsPage.flipCard();
+  await expect(flashcardsPage.flashcard).toHaveClass(/is-flipped/);
 
-  const translation = page.locator('#card-translation');
-  await expect(translation).toBeVisible();
-  expect((await translation.innerText()).trim().length).toBeGreaterThan(0);
+  await expect(flashcardsPage.cardTranslation).toBeVisible();
+  expect((await flashcardsPage.cardTranslation.innerText()).trim().length).toBeGreaterThan(0);
 
-  const ratingsWrapper = page.locator('#srs-ratings-wrapper');
-  await expect(ratingsWrapper).toBeVisible();
+  await expect(flashcardsPage.ratingsWrapper).toBeVisible();
 
-  const btnWrong = page.locator('#btn-srs-wrong');
-  const btnAudio = page.locator('#btn-audio');
-  const btnCorrect = page.locator('#btn-srs-correct');
+  await expect(flashcardsPage.btnAgain).toBeVisible();
+  await expect(flashcardsPage.btnAudio).toBeVisible();
+  await expect(flashcardsPage.btnGood).toBeVisible();
 
-  await expect(btnWrong).toBeVisible();
-  await expect(btnAudio).toBeVisible();
-  await expect(btnCorrect).toBeVisible();
-
-  expect((await btnWrong.innerText()).trim()).toBe('✕');
-  expect((await btnAudio.innerText()).trim()).toBe('🔊');
-  expect((await btnCorrect.innerText()).trim()).toBe('✓');
+  expect((await flashcardsPage.btnAgain.innerText()).trim()).toBe('✕');
+  expect((await flashcardsPage.btnAudio.innerText()).trim()).toBe('🔊');
+  expect((await flashcardsPage.btnGood.innerText()).trim()).toBe('✓');
 
   // Button sizing (~44-60px, near-circular)
-  for (const [name, btn] of [['Red ✕', btnWrong], ['Audio 🔊', btnAudio], ['Green ✓', btnCorrect]] as const) {
+  for (const [name, btn] of [['Red ✕', flashcardsPage.btnAgain], ['Audio 🔊', flashcardsPage.btnAudio], ['Green ✓', flashcardsPage.btnGood]] as const) {
     const box = await btn.boundingBox();
     expect(box, `${name} bounding box`).not.toBeNull();
     expect(box!.width).toBeGreaterThanOrEqual(44);
@@ -322,9 +353,9 @@ test('test_flashcard_flip_and_srs_buttons_ui', async ({ page }) => {
   }
 
   // Left-to-right ordering
-  const wrongBox = (await btnWrong.boundingBox())!;
-  const audioBox = (await btnAudio.boundingBox())!;
-  const correctBox = (await btnCorrect.boundingBox())!;
+  const wrongBox = (await flashcardsPage.btnAgain.boundingBox())!;
+  const audioBox = (await flashcardsPage.btnAudio.boundingBox())!;
+  const correctBox = (await flashcardsPage.btnGood.boundingBox())!;
 
   expect(wrongBox.x + wrongBox.width).toBeLessThan(audioBox.x);
   expect(audioBox.x + audioBox.width).toBeLessThan(correctBox.x);
@@ -332,7 +363,7 @@ test('test_flashcard_flip_and_srs_buttons_ui', async ({ page }) => {
   expect(Math.abs(audioBox.y - correctBox.y)).toBeLessThan(5);
 
   // Circular border-radius
-  for (const btn of [btnWrong, btnAudio, btnCorrect]) {
+  for (const btn of [flashcardsPage.btnAgain, flashcardsPage.btnAudio, flashcardsPage.btnGood]) {
     const radius = await btn.evaluate((el) => window.getComputedStyle(el).borderRadius);
     const isCircular =
       radius.includes('50%') ||
@@ -357,40 +388,44 @@ test('test_flashcard_flip_and_srs_buttons_ui', async ({ page }) => {
   await expect(page).toHaveScreenshot();
 });
 
-test('test_mobile_viewport_no_overflow', async ({ page }) => {
-  await expect(page.locator('#auth-view')).toBeVisible();
+test('test_mobile_viewport_no_overflow', async ({
+  page,
+  login,
+  authPage,
+  header,
+  drawer,
+  dock,
+  flashcardsPage,
+}) => {
+  await authPage.expectLoaded();
   const scrollWidthUnauth = await page.evaluate(() => document.documentElement.scrollWidth);
   const clientWidthUnauth = await page.evaluate(() => document.documentElement.clientWidth);
   expect(scrollWidthUnauth).toBeLessThanOrEqual(clientWidthUnauth);
 
   const viewportWidth = page.viewportSize()!.width;
 
-  await loginUser(page);
+  await login();
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
-  if (await page.locator('#empty-state').isVisible()) {
-    await page.locator('#quick-word-input').fill('gezellig - уютный');
-    await page.locator('#btn-quick-send').click();
-    await expect(page.locator('#card-word')).toHaveText('gezellig');
+  if (await flashcardsPage.emptyState.isVisible()) {
+    await dock.input.fill('gezellig - уютный');
+    await dock.btnSend.click();
+    await expect(flashcardsPage.cardWord).toHaveText('gezellig');
   }
 
-  await page.locator('#flashcard').click();
-  await expect(page.locator('#flashcard')).toHaveClass(/is-flipped/);
+  await flashcardsPage.flipCard();
+  await expect(flashcardsPage.flashcard).toHaveClass(/is-flipped/);
 
-  const btnWrong = page.locator('#btn-srs-wrong');
-  const btnAudio = page.locator('#btn-audio');
-  const btnCorrect = page.locator('#btn-srs-correct');
+  await expect(flashcardsPage.btnAgain).toBeVisible();
+  await expect(flashcardsPage.btnAudio).toBeVisible();
+  await expect(flashcardsPage.btnGood).toBeVisible();
 
-  await expect(btnWrong).toBeVisible();
-  await expect(btnAudio).toBeVisible();
-  await expect(btnCorrect).toBeVisible();
-
-  const wrongBox = (await btnWrong.boundingBox())!;
-  const audioBox = (await btnAudio.boundingBox())!;
-  const correctBox = (await btnCorrect.boundingBox())!;
+  const wrongBox = (await flashcardsPage.btnAgain.boundingBox())!;
+  const audioBox = (await flashcardsPage.btnAudio.boundingBox())!;
+  const correctBox = (await flashcardsPage.btnGood.boundingBox())!;
   expect(wrongBox).not.toBeNull();
   expect(audioBox).not.toBeNull();
   expect(correctBox).not.toBeNull();
@@ -405,8 +440,7 @@ test('test_mobile_viewport_no_overflow', async ({ page }) => {
   const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
   expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
 
-  await btnWrong.scrollIntoViewIfNeeded();
+  await flashcardsPage.btnAgain.scrollIntoViewIfNeeded();
 
   await expect(page).toHaveScreenshot();
 });
-

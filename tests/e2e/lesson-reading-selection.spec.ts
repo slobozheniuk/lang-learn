@@ -2,10 +2,16 @@
  * Interactive Lesson Reading & Word Selection tests
  * Mirrors: tests/mobile/test_lesson_reading_selection_e2e.py
  */
-import { test, expect, loginUser } from './fixtures';
+import { test, expect } from './fixtures';
 
-test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) => {
-  await loginUser(page);
+test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({
+  page,
+  login,
+  dock,
+  lessonsPage,
+  lessonDetailPage,
+}) => {
+  await login();
 
   // Clean existing lessons and words
   await page.evaluate(async () => {
@@ -23,60 +29,51 @@ test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) =>
   });
 
   // Submit text (16 words >= 5 words)
-  const dockInput = page.locator('#quick-word-input');
-  await expect(dockInput).toBeVisible();
-  await dockInput.fill("Yesterday I decided to get off the train and give up junk food. It was a great day.");
-  await page.locator('#btn-quick-send').click();
+  await expect(dock.input).toBeVisible();
+  await dock.input.fill("Yesterday I decided to get off the train and give up junk food. It was a great day.");
+  await dock.btnSend.click();
 
   // Lesson card appears in grid without prompt modal
-  const lessonCard = page.locator('.lesson-card').first();
+  const lessonCard = lessonsPage.lessonCards.first();
   await expect(lessonCard).toBeVisible({ timeout: 10000 });
   await expect(lessonCard).not.toHaveClass(/lesson-card-generating/, { timeout: 15000 });
   await lessonCard.click();
 
   // Lesson opens in reading mode
-  const readingContainer = page.locator('#reading-study-container');
-  await expect(readingContainer).toBeVisible({ timeout: 15000 });
-
-  const btnModeRead = page.locator('#btn-mode-reading');
-  await expect(btnModeRead).toHaveClass(/active/);
+  await expect(lessonDetailPage.readingContainer).toBeVisible({ timeout: 15000 });
+  await expect(lessonDetailPage.btnModeReading).toHaveClass(/active/);
 
   // Chips exist
-  const chips = page.locator('.reading-chunk-chip');
-  await expect(chips.first()).toBeVisible();
+  await expect(lessonDetailPage.readingChunks.first()).toBeVisible();
 
   // Prepare button disabled initially
-  const btnPrepare = page.locator('#btn-prepare-lesson');
-  await expect(btnPrepare).toBeVisible();
-  await expect(btnPrepare).toBeDisabled();
-  await expect(page.locator('#selected-chunks-count')).toContainText('0 words selected');
+  await expect(lessonDetailPage.btnPrepareLesson).toBeVisible();
+  await expect(lessonDetailPage.btnPrepareLesson).toBeDisabled();
+  await expect(lessonDetailPage.selectedChunksCount).toContainText('0 words selected');
 
   // Select "get off"
-  const getOffChip = page.locator('.reading-chunk-chip', { hasText: 'get off' }).first();
+  const getOffChip = lessonDetailPage.readingChunks.filter({ hasText: 'get off' }).first();
   await expect(getOffChip).toBeVisible();
   await getOffChip.click();
   await expect(getOffChip).toHaveClass(/chunk-highlighted/);
-  await expect(page.locator('#selected-chunks-count')).toContainText('1 word selected');
-  await expect(btnPrepare).toBeEnabled();
+  await expect(lessonDetailPage.selectedChunksCount).toContainText('1 word selected');
+  await expect(lessonDetailPage.btnPrepareLesson).toBeEnabled();
 
   // Select "give up"
-  const giveUpChip = page.locator('.reading-chunk-chip', { hasText: 'give up' }).first();
+  const giveUpChip = lessonDetailPage.readingChunks.filter({ hasText: 'give up' }).first();
   await expect(giveUpChip).toBeVisible();
   await giveUpChip.click();
   await expect(giveUpChip).toHaveClass(/chunk-highlighted/);
-  await expect(page.locator('#selected-chunks-count')).toContainText('2 words selected');
+  await expect(lessonDetailPage.selectedChunksCount).toContainText('2 words selected');
 
   await expect(page).toHaveScreenshot();
 
   // Click Prepare Lesson
-  await btnPrepare.click();
+  await lessonDetailPage.btnPrepareLesson.click();
 
   // Transition to Quiz mode
-  const quizContainer = page.locator('#quiz-study-container');
-  await expect(quizContainer).toBeVisible({ timeout: 15000 });
-
-  const btnModeQuiz = page.locator('#btn-mode-quiz');
-  await expect(btnModeQuiz).toHaveClass(/active/);
+  await expect(lessonDetailPage.quizContainer).toBeVisible({ timeout: 15000 });
+  await expect(lessonDetailPage.btnModeQuiz).toHaveClass(/active/);
 
   // Answer quiz question
   const option0 = page.locator('#quiz-option-0');
@@ -86,26 +83,30 @@ test('test_reading_chunk_selection_and_prepare_lesson_flow', async ({ page }) =>
   await expect(page).toHaveScreenshot();
 
   // Next question
-  const btnNextQ = page.locator('#btn-next-quiz-question');
-  await expect(btnNextQ).toBeEnabled();
-  await btnNextQ.click();
+  await expect(lessonDetailPage.btnNextQuizQuestion).toBeEnabled();
+  await lessonDetailPage.btnNextQuizQuestion.click();
 
   // If there's another question, answer it too
   if (await page.locator('#quiz-option-0').isVisible()) {
     await page.locator('#quiz-option-0').click();
-    await page.locator('#btn-next-quiz-question').click();
+    await lessonDetailPage.btnNextQuizQuestion.click();
   }
 
   // Quiz completed
-  await expect(page.locator('#quiz-completed-state')).toBeVisible({ timeout: 10000 });
+  await expect(lessonDetailPage.quizCompletedState).toBeVisible({ timeout: 10000 });
 
   // Back to Lessons
-  await page.locator('#btn-finish-quiz-back').click();
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await lessonDetailPage.btnFinishQuizBack.click();
+  await lessonsPage.expectLoaded();
 });
 
-test('test_interactive_reading_unhighlight_toggle', async ({ page }) => {
-  await loginUser(page);
+test('test_interactive_reading_unhighlight_toggle', async ({
+  page,
+  login,
+  lessonsPage,
+  lessonDetailPage,
+}) => {
+  await login();
 
   // Create reading lesson via API
   await page.evaluate(async () => {
@@ -125,32 +126,32 @@ test('test_interactive_reading_unhighlight_toggle', async ({ page }) => {
   });
 
   await page.reload();
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await lessonsPage.expectLoaded();
 
   // Open the reading lesson
-  const lessonCard = page.locator('.lesson-card', { hasText: 'Adventure Story' }).first();
+  const lessonCard = lessonsPage.lessonCards.filter({ hasText: 'Adventure Story' }).first();
   await expect(lessonCard).toBeVisible({ timeout: 10000 });
   await lessonCard.click();
 
-  await expect(page.locator('#reading-study-container')).toBeVisible();
+  await expect(lessonDetailPage.readingContainer).toBeVisible();
 
   // Tap "wake up"
-  const chip = page.locator('.reading-chunk-chip', { hasText: 'wake up' }).first();
+  const chip = lessonDetailPage.readingChunks.filter({ hasText: 'wake up' }).first();
   await expect(chip).toBeVisible();
   await chip.click();
   await expect(chip).toHaveClass(/chunk-highlighted/);
-  await expect(page.locator('#selected-chunks-count')).toContainText('1 word selected');
-  await expect(page.locator('#btn-prepare-lesson')).toBeEnabled();
+  await expect(lessonDetailPage.selectedChunksCount).toContainText('1 word selected');
+  await expect(lessonDetailPage.btnPrepareLesson).toBeEnabled();
 
   // Tap "wake up" again to untoggle
   await chip.click();
   await expect(chip).not.toHaveClass(/chunk-highlighted/);
-  await expect(page.locator('#selected-chunks-count')).toContainText('0 words selected');
-  await expect(page.locator('#btn-prepare-lesson')).toBeDisabled();
+  await expect(lessonDetailPage.selectedChunksCount).toContainText('0 words selected');
+  await expect(lessonDetailPage.btnPrepareLesson).toBeDisabled();
 
   // Close lesson
-  await page.locator('#btn-close-lesson').click();
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await lessonDetailPage.close();
+  await lessonsPage.expectLoaded();
 
   // Clean up test lesson
   await page.evaluate(async () => {

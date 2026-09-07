@@ -2,38 +2,48 @@
  * Lessons & Deck Restart tests
  * Mirrors: tests/mobile/test_lessons_and_restart.py
  */
-import { test, expect, loginUser } from './fixtures';
+import { test, expect } from './fixtures';
 
-test('test_lessons_is_default_page_on_load', async ({ page }) => {
+test('test_lessons_is_default_page_on_load', async ({
+  login,
+  authPage,
+  lessonsPage,
+  flashcardsPage,
+  wordlistPage,
+  header,
+  drawer,
+}) => {
   // Unauthenticated: auth visible, lessons hidden
-  await expect(page.locator('#auth-view')).toBeVisible();
-  await expect(page.locator('#lessons-view')).toHaveCount(0);
+  await authPage.expectLoaded();
+  await lessonsPage.expectHidden();
 
-  await loginUser(page);
+  await login();
 
-  const lessonsView = page.locator('#lessons-view');
-  await expect(lessonsView).toBeVisible();
-  await expect(page.locator('#flashcards-view')).not.toBeVisible();
-  await expect(page.locator('#wordlist-view')).not.toBeVisible();
+  await lessonsPage.expectLoaded();
+  await flashcardsPage.expectHidden();
+  await wordlistPage.expectHidden();
 
   // Burger menu shows Lessons as active
-  await page.locator('#burger-menu-btn').click();
-  const navLessons = page.locator('#nav-link-lessons');
-  await expect(navLessons).toBeVisible();
-  await expect(navLessons).toHaveClass(/active/);
-  await expect(navLessons).toContainText('Lessons');
+  await header.openBurgerMenu();
+  await expect(drawer.navLessons).toBeVisible();
+  await expect(drawer.navLessons).toHaveClass(/active/);
+  await expect(drawer.navLessons).toContainText('Lessons');
 
   // Close menu
-  await page.locator('#drawer-close-btn').click();
-  await expect(page.locator('#burger-menu-drawer')).not.toHaveClass(/is-open/);
+  await drawer.close();
+  await drawer.expectClosed();
 
   // Brand logo click stays on Lessons
-  await page.locator('.brand').click();
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await header.clickBrand();
+  await lessonsPage.expectLoaded();
 });
 
-test('test_vocabulary_words_do_not_create_lesson_cards', async ({ page }) => {
-  await loginUser(page);
+test('test_vocabulary_words_do_not_create_lesson_cards', async ({
+  page,
+  login,
+  lessonsPage,
+}) => {
+  await login();
 
   // Clean existing words and lessons
   await page.evaluate(async () => {
@@ -71,8 +81,8 @@ test('test_vocabulary_words_do_not_create_lesson_cards', async ({ page }) => {
   await page.waitForTimeout(300);
 
   // Adding vocabulary words must NOT create lesson cards
-  await expect(page.locator('.lesson-card')).toBeHidden();
-  await expect(page.locator('#lessons-empty')).toBeVisible();
+  await expect(lessonsPage.lessonCards).toBeHidden();
+  await lessonsPage.expectEmpty();
 
   // Creating a real backend lesson displays the lesson card
   await page.evaluate(async () => {
@@ -93,13 +103,19 @@ test('test_vocabulary_words_do_not_create_lesson_cards', async ({ page }) => {
   await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
-  const card1 = page.locator('#lesson-card-1');
+  const card1 = lessonsPage.getLessonCard(1);
   await expect(card1).toBeVisible();
   await expect(card1.locator('.lesson-title')).toHaveText('Lesson 1');
 });
 
-test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
-  await loginUser(page);
+test('test_lesson_detail_opens_hides_dock_and_closes', async ({
+  page,
+  login,
+  lessonsPage,
+  lessonDetailPage,
+  dock,
+}) => {
+  await login();
 
   // Clean existing lessons and words
   await page.evaluate(async () => {
@@ -136,35 +152,37 @@ test('test_lesson_detail_opens_hides_dock_and_closes', async ({ page }) => {
   await page.waitForTimeout(300);
 
   // Bottom dock initially visible
-  const bottomDock = page.locator('.bottom-dock');
-  await expect(bottomDock).toBeVisible();
+  await dock.expectVisible();
 
-  const card1 = page.locator('#lesson-card-1');
+  const card1 = lessonsPage.getLessonCard(1);
   await expect(card1).toBeVisible();
   await card1.click();
 
   // Lesson detail opens
-  const detailView = page.locator('#lesson-detail-view');
-  await expect(detailView).toBeVisible();
-  await expect(page.locator('.lesson-detail-title')).toHaveText('Lesson 1');
+  await lessonDetailPage.expectLoaded();
+  await expect(lessonDetailPage.title).toHaveText('Lesson 1');
 
   // Bottom dock hidden
-  await expect(page.locator('.bottom-dock')).toHaveCount(0);
+  await dock.expectHidden();
 
   // Close button visible
-  const closeBtn = page.locator('#btn-close-lesson');
-  await expect(closeBtn).toBeVisible();
-  expect(await closeBtn.innerText()).toContain('✕');
+  await expect(lessonDetailPage.btnClose).toBeVisible();
+  expect(await lessonDetailPage.btnClose.innerText()).toContain('✕');
 
   // Close returns to Lessons
-  await closeBtn.click();
-  await expect(page.locator('#lesson-detail-view')).not.toBeVisible();
-  await expect(page.locator('#lessons-view')).toBeVisible();
-  await expect(page.locator('.bottom-dock')).toBeVisible();
+  await lessonDetailPage.close();
+  await lessonDetailPage.expectHidden();
+  await lessonsPage.expectLoaded();
+  await dock.expectVisible();
 });
 
-test('test_lesson_detail_interactive_study_and_completion', async ({ page }) => {
-  await loginUser(page);
+test('test_lesson_detail_interactive_study_and_completion', async ({
+  page,
+  login,
+  lessonsPage,
+  lessonDetailPage,
+}) => {
+  await login();
 
   // Clean existing lessons and words
   await page.evaluate(async () => {
@@ -200,31 +218,28 @@ test('test_lesson_detail_interactive_study_and_completion', async ({ page }) => 
   await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
-  await page.locator('#lesson-card-1').click();
-  await expect(page.locator('#lesson-detail-view')).toBeVisible();
+  await lessonsPage.openLesson(1);
+  await lessonDetailPage.expectLoaded();
 
   // Switch to flashcards study mode
-  const btnCards = page.locator('#btn-mode-cards');
-  if (await btnCards.isVisible()) {
-    await btnCards.click();
+  if (await lessonDetailPage.btnModeCards.isVisible()) {
+    await lessonDetailPage.switchMode('cards');
   }
 
-  const card = page.locator('#lesson-flashcard');
-  await expect(card).toBeVisible();
-  await expect(card).not.toHaveClass(/is-flipped/);
-  await card.click();
-  await expect(card).toHaveClass(/is-flipped/);
+  await expect(lessonDetailPage.flashcard).toBeVisible();
+  await expect(lessonDetailPage.flashcard).not.toHaveClass(/is-flipped/);
+  await lessonDetailPage.flipCard();
+  await expect(lessonDetailPage.flashcard).toHaveClass(/is-flipped/);
 
   // Next card
-  await page.locator('#btn-lesson-next').click();
-  await expect(page.locator('.lesson-detail-counter')).toContainText('Card 2');
+  await lessonDetailPage.nextCard();
+  await expect(lessonDetailPage.cardCounter).toContainText('Card 2');
 
   // Step through all cards until completion
   let safetyCount = 0;
-  while (!(await page.locator('#lesson-completed-state').isVisible()) && safetyCount < 20) {
-    const btnNext = page.locator('#btn-lesson-next');
-    if (await btnNext.isVisible()) {
-      await btnNext.click();
+  while (!(await lessonDetailPage.cardCompletedState.isVisible()) && safetyCount < 20) {
+    if (await lessonDetailPage.btnNextCard.isVisible()) {
+      await lessonDetailPage.nextCard();
       await page.waitForTimeout(200);
     } else {
       break;
@@ -232,23 +247,28 @@ test('test_lesson_detail_interactive_study_and_completion', async ({ page }) => 
     safetyCount++;
   }
 
-  await expect(page.locator('#lesson-completed-state')).toBeVisible();
-  await expect(page.locator('.empty-title')).toContainText('Lesson Completed');
+  await expect(lessonDetailPage.cardCompletedState).toBeVisible();
+  await expect(lessonDetailPage.cardCompletedState.locator('.empty-title')).toContainText('Lesson Completed');
 
   // Restart lesson
-  const btnRestart = page.locator('#btn-restart-lesson');
-  await expect(btnRestart).toBeVisible();
-  await btnRestart.click();
+  await expect(lessonDetailPage.btnRestartLesson).toBeVisible();
+  await lessonDetailPage.restartFlashcards();
 
-  await expect(page.locator('#lesson-flashcard')).toBeVisible();
-  await expect(page.locator('.lesson-detail-counter')).toContainText('Card 1');
+  await expect(lessonDetailPage.flashcard).toBeVisible();
+  await expect(lessonDetailPage.cardCounter).toContainText('Card 1');
 
-  await page.locator('#btn-close-lesson').click();
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await lessonDetailPage.close();
+  await lessonsPage.expectLoaded();
 });
 
-test('test_flashcards_restart_deck_button_on_completion', async ({ page }) => {
-  await loginUser(page);
+test('test_flashcards_restart_deck_button_on_completion', async ({
+  page,
+  login,
+  header,
+  drawer,
+  flashcardsPage,
+}) => {
+  await login();
 
   // Seed 2 words
   await page.evaluate(async () => {
@@ -266,41 +286,43 @@ test('test_flashcards_restart_deck_button_on_completion', async ({ page }) => {
     });
   });
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
   // Wait for cards to be loaded and rendered
-  const card = page.locator('#flashcard');
-  await expect(card).toBeVisible();
+  await expect(flashcardsPage.flashcard).toBeVisible();
 
   // Review all cards until deck empty
   for (let i = 0; i < 40; i++) {
-    if (await card.isVisible()) {
-      await card.click();
-      const btnCorrect = page.locator('#btn-srs-correct');
-      await expect(btnCorrect).toBeVisible();
-      await btnCorrect.click();
+    if (await flashcardsPage.flashcard.isVisible()) {
+      await flashcardsPage.flipCard();
+      await expect(flashcardsPage.btnGood).toBeVisible();
+      await flashcardsPage.rateGood();
       await page.waitForTimeout(300);
     } else {
       break;
     }
   }
 
-  await expect(page.locator('#empty-state')).toBeVisible();
-  const btnRestart = page.locator('#btn-restart-deck');
-  await expect(btnRestart).toBeVisible();
-  await expect(btnRestart).toContainText('Restart Deck');
+  await expect(flashcardsPage.emptyState).toBeVisible();
+  await expect(flashcardsPage.btnRestartDeck).toBeVisible();
+  await expect(flashcardsPage.btnRestartDeck).toContainText('Restart Deck');
 
-  await btnRestart.click();
+  await flashcardsPage.restartDeck();
 
-  await expect(page.locator('#flashcard')).toBeVisible();
-  await expect(page.locator('#card-word')).toBeVisible();
-  await expect(page.locator('#empty-state')).not.toBeVisible();
+  await expect(flashcardsPage.flashcard).toBeVisible();
+  await expect(flashcardsPage.cardWord).toBeVisible();
+  await expect(flashcardsPage.emptyState).not.toBeVisible();
 });
 
-test('test_lesson_three_dot_menu_and_delete_lesson', async ({ page }) => {
-  await loginUser(page);
+test('test_lesson_three_dot_menu_and_delete_lesson', async ({
+  page,
+  login,
+  lessonsPage,
+  lessonDetailPage,
+}) => {
+  await login();
 
   // Clean existing lessons and words
   await page.evaluate(async () => {
@@ -336,15 +358,13 @@ test('test_lesson_three_dot_menu_and_delete_lesson', async ({ page }) => {
   await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
-  const card = page.locator('#lesson-card-1');
+  const card = lessonsPage.getLessonCard(1);
   await expect(card).toBeVisible();
 
-  const dotsBtn = card.locator('.btn-lesson-dots-menu');
-  await expect(dotsBtn).toBeVisible();
-  await dotsBtn.click();
+  await lessonsPage.openLessonMenu(1);
 
   // Lesson detail did NOT open
-  await expect(page.locator('#lesson-detail-view')).not.toBeVisible();
+  await lessonDetailPage.expectHidden();
 
   // Dropdown with Delete button
   const dropdown = card.locator('.lesson-dropdown-menu');
@@ -356,12 +376,17 @@ test('test_lesson_three_dot_menu_and_delete_lesson', async ({ page }) => {
   await delBtn.click();
   await page.waitForTimeout(300);
 
-  await expect(page.locator('#lesson-card-1')).toHaveCount(0);
-  await expect(page.locator('#lessons-empty')).toBeVisible();
+  await expect(lessonsPage.getLessonCard(1)).toHaveCount(0);
+  await lessonsPage.expectEmpty();
 });
 
-test('test_lesson_three_dot_menu_flip_up_and_outside_click', async ({ page }) => {
-  await loginUser(page);
+test('test_lesson_three_dot_menu_flip_up_and_outside_click', async ({
+  page,
+  login,
+  header,
+  lessonsPage,
+}) => {
+  await login();
 
   // Clean existing lessons and words
   await page.evaluate(async () => {
@@ -399,7 +424,7 @@ test('test_lesson_three_dot_menu_flip_up_and_outside_click', async ({ page }) =>
   await page.evaluate(() => (window as unknown as Record<string, unknown>).loadLessons?.());
   await page.waitForTimeout(300);
 
-  const card = page.locator('#lesson-card-3');
+  const card = lessonsPage.getLessonCard(3);
   await expect(card).toBeVisible();
 
   const dotsBtn = card.locator('.btn-lesson-dots-menu');
@@ -411,7 +436,6 @@ test('test_lesson_three_dot_menu_flip_up_and_outside_click', async ({ page }) =>
 
   const cardBox = await card.boundingBox();
   expect(cardBox).not.toBeNull();
-  const viewportHeight = page.viewportSize()!.height;
 
   // Verify the dropdown is visible — direction (up/down) is determined by available
   // space and may legitimately differ across device viewport heights.
@@ -426,6 +450,6 @@ test('test_lesson_three_dot_menu_flip_up_and_outside_click', async ({ page }) =>
   expect(hasElevatedZindex).toBeTruthy();
 
   // Click outside to close
-  await page.locator('.app-header').click();
+  await header.root.click();
   await expect(dropdown).not.toBeVisible();
 });

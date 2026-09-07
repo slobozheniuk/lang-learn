@@ -2,10 +2,17 @@
  * AI Translation tests
  * Mirrors: tests/mobile/test_ai_translation_mobile.py
  */
-import { test, expect, loginUser } from './fixtures';
+import { test, expect } from './fixtures';
 
-test('test_ai_translation_single_word_submission', async ({ page }) => {
-  await loginUser(page);
+test('test_ai_translation_single_word_submission', async ({
+  page,
+  login,
+  header,
+  drawer,
+  dock,
+  flashcardsPage,
+}) => {
+  await login();
 
   // Clean existing words
   await page.evaluate(async () => {
@@ -17,41 +24,41 @@ test('test_ai_translation_single_word_submission', async ({ page }) => {
     }
   });
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-flashcards').click();
-  await expect(page.locator('#flashcards-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
 
-  const quickInput = page.locator('#quick-word-input');
-  await expect(quickInput).toBeVisible();
-  await quickInput.fill('luminary - светило');
+  await expect(dock.input).toBeVisible();
+  await dock.input.fill('luminary - светило');
 
-  await page.locator('#btn-quick-send').click();
+  await dock.btnSend.click();
   await page.waitForTimeout(400);
 
-  const cardWord = page.locator('#card-word');
-  await expect(cardWord).toBeVisible();
-  await expect(cardWord).toHaveText('luminary');
+  await expect(flashcardsPage.cardWord).toBeVisible();
+  await flashcardsPage.expectCardWord('luminary');
 
-  const cardPhonetic = page.locator('#card-phonetic');
-  await expect(cardPhonetic).toBeVisible();
-  expect((await cardPhonetic.innerText()).trim().length).toBeGreaterThan(0);
+  await expect(flashcardsPage.cardPhonetic).toBeVisible();
+  expect((await flashcardsPage.cardPhonetic.innerText()).trim().length).toBeGreaterThan(0);
 
   // Flip card
-  const card = page.locator('#flashcard');
-  await card.click();
-  await expect(card).toHaveClass(/(is-flipped|flipped)/);
+  await flashcardsPage.flipCard();
+  await expect(flashcardsPage.flashcard).toHaveClass(/(is-flipped|flipped)/);
 
-  const cardTranslation = page.locator('#card-translation');
-  await expect(cardTranslation).toBeVisible();
-  await expect(cardTranslation).toHaveText('светило');
+  await expect(flashcardsPage.cardTranslation).toBeVisible();
+  await flashcardsPage.expectCardTranslation('светило');
 
-  const cardContext = page.locator('#card-context');
-  await expect(cardContext).toBeVisible();
-  expect(await cardContext.innerText()).toContain('luminary');
+  await expect(flashcardsPage.cardContext).toBeVisible();
+  expect(await flashcardsPage.cardContext.innerText()).toContain('luminary');
 });
 
-test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
-  await loginUser(page);
+test('test_ai_translation_long_text_forms_named_lesson', async ({
+  page,
+  login,
+  lessonsPage,
+  lessonDetailPage,
+  dock,
+}) => {
+  await login();
 
   // Clean existing words and lessons
   await page.evaluate(async () => {
@@ -75,31 +82,31 @@ test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
   });
   await page.waitForTimeout(300);
 
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await lessonsPage.expectLoaded();
 
   // 1. Text with < 5 words should NOT create a lesson card
   const shortText = 'quick brown fox';
-  const quickInput = page.locator('#quick-word-input');
-  await expect(quickInput).toBeVisible();
-  await quickInput.fill(shortText);
+  await expect(dock.input).toBeVisible();
+  await dock.input.fill(shortText);
 
-  await page.locator('#btn-quick-send').click();
+  await dock.btnSend.click();
   await page.waitForTimeout(500);
 
+  // No substitute in POM for #multi-sentence-modal: legacy modal check retained
   await expect(page.locator('#multi-sentence-modal')).toBeHidden();
-  await expect(page.locator('.lesson-card')).toBeHidden();
-  await expect(page.locator('#lessons-empty')).toBeVisible();
+  await expect(lessonsPage.lessonCards).toBeHidden();
+  await lessonsPage.expectEmpty();
 
   // 2. Text with >= 5 words automatically creates a lesson card without prompting
   const longText = 'The quick brown fox jumps over the lazy dog. It rests peacefully under the shade.';
-  await quickInput.fill(longText);
-  await page.locator('#btn-quick-send').click();
+  await dock.input.fill(longText);
+  await dock.btnSend.click();
 
-  // No prompt modal appears
+  // No prompt modal appears (legacy modal locator)
   await expect(page.locator('#multi-sentence-modal')).toBeHidden();
 
   // Lesson card appears in grid
-  const firstCard = page.locator('.lesson-card').first();
+  const firstCard = lessonsPage.lessonCards.first();
   await expect(firstCard).toBeVisible({ timeout: 10000 });
 
   // Wait for background lesson generation to complete
@@ -107,13 +114,10 @@ test('test_ai_translation_long_text_forms_named_lesson', async ({ page }) => {
 
   // Lesson card can be opened into lesson detail view
   await firstCard.click();
-  const detailView = page.locator('#lesson-detail-view');
-  await expect(detailView).toBeVisible({ timeout: 10000 });
+  await lessonDetailPage.expectLoaded();
 
   // Close lesson detail to view lesson card in grid
-  const closeBtn = page.locator('#btn-close-lesson');
-  await expect(closeBtn).toBeVisible();
-  await closeBtn.click();
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await lessonDetailPage.close();
+  await lessonsPage.expectLoaded();
   await expect(firstCard).toBeVisible();
 });

@@ -2,89 +2,90 @@
  * Wordlist & Navigation tests
  * Mirrors: tests/mobile/test_wordlist_and_navigation.py
  */
-import { test, expect, loginUser } from './fixtures';
+import { test, expect } from './fixtures';
 
-test('test_cheeseburger_menu_open_and_close', async ({ page }) => {
+test('test_cheeseburger_menu_open_and_close', async ({
+  login,
+  header,
+  drawer,
+}) => {
   // Not visible before login
-  await expect(page.locator('#burger-menu-btn')).toHaveCount(0);
+  await header.expectUnauthenticated();
 
-  await loginUser(page);
+  await login();
 
-  const burgerBtn = page.locator('#burger-menu-btn');
-  await expect(burgerBtn).toBeVisible();
-  expect(await burgerBtn.innerText()).toContain('☰');
+  await expect(header.btnBurger).toBeVisible();
+  expect(await header.btnBurger.innerText()).toContain('☰');
 
   // Open drawer
-  await burgerBtn.click();
-  const drawer = page.locator('#burger-menu-drawer');
-  const backdrop = page.locator('#menu-backdrop');
-  await expect(drawer).toHaveClass(/(is-open|open|active)/);
-  await expect(backdrop).toHaveClass(/(is-open|open|active|show)/);
+  await header.openBurgerMenu();
+  await drawer.expectOpen();
+  await expect(drawer.backdrop).toHaveClass(/(is-open|open|active|show)/);
 
   // No 'Menu' text in drawer header
-  const drawerHeader = drawer.locator('.drawer-header');
+  const drawerHeader = drawer.root.locator('.drawer-header');
   await expect(drawerHeader).not.toContainText('Menu');
 
   // Nav links exist
-  await expect(page.locator('#nav-link-lessons')).toBeVisible();
-  await expect(page.locator('#nav-link-flashcards')).toBeVisible();
-  await expect(page.locator('#nav-link-wordlist')).toBeVisible();
+  await expect(drawer.navLessons).toBeVisible();
+  await expect(drawer.navFlashcards).toBeVisible();
+  await expect(drawer.navWordlist).toBeVisible();
 
   // Close via backdrop click (right of 270px drawer on 390px viewport)
-  await backdrop.click({ position: { x: 330, y: 200 } });
-  await expect(drawer).not.toHaveClass(/is-open/);
+  await drawer.closeViaBackdrop({ x: 330, y: 200 });
+  await drawer.expectClosed();
 
   // Open again and close via close button
-  await burgerBtn.click();
-  await expect(drawer).toHaveClass(/(is-open|open|active)/);
-  const closeBtn = page.locator('#drawer-close-btn');
-  await expect(closeBtn).toBeVisible();
-  await closeBtn.click();
-  await expect(drawer).not.toHaveClass(/is-open/);
+  await header.openBurgerMenu();
+  await drawer.expectOpen();
+  await drawer.close();
+  await drawer.expectClosed();
 });
 
-test('test_navigation_between_flashcards_and_wordlist', async ({ page }) => {
-  await loginUser(page);
+test('test_navigation_between_flashcards_and_wordlist', async ({
+  page,
+  login,
+  header,
+  drawer,
+  lessonsPage,
+  flashcardsPage,
+  wordlistPage,
+}) => {
+  await login();
 
-  // No page title badge in header
+  // No page title badge in header (no substitute in POM, direct check)
   await expect(page.locator('#page-title')).toHaveCount(0);
 
   // Initial page is Lessons
-  await expect(page.locator('#lessons-view')).toBeVisible();
+  await lessonsPage.expectLoaded();
 
   // Navigate to Wordlist
-  await page.locator('#burger-menu-btn').click();
-  const navWordlist = page.locator('#nav-link-wordlist');
-  await expect(navWordlist).toBeVisible();
-  await navWordlist.click();
-
-  await expect(page.locator('#burger-menu-drawer')).not.toHaveClass(/is-open/);
-  await expect(page.locator('#wordlist-view')).toBeVisible();
-  await expect(page.locator('#lessons-view')).not.toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('wordlist');
+  await wordlistPage.expectLoaded();
+  await lessonsPage.expectHidden();
 
   // Navigate to Flashcards
-  await page.locator('#burger-menu-btn').click();
-  const navFlashcards = page.locator('#nav-link-flashcards');
-  await expect(navFlashcards).toBeVisible();
-  await navFlashcards.click();
-
-  await expect(page.locator('#burger-menu-drawer')).not.toHaveClass(/is-open/);
-  await expect(page.locator('#flashcards-view')).toBeVisible();
-  await expect(page.locator('#wordlist-view')).not.toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('flashcards');
+  await flashcardsPage.expectLoaded();
+  await wordlistPage.expectHidden();
 
   // Navigate back to Lessons
-  await page.locator('#burger-menu-btn').click();
-  const navLessons = page.locator('#nav-link-lessons');
-  await expect(navLessons).toBeVisible();
-  await navLessons.click();
-
-  await expect(page.locator('#burger-menu-drawer')).not.toHaveClass(/is-open/);
-  await expect(page.locator('#lessons-view')).toBeVisible();
-  await expect(page.locator('#flashcards-view')).not.toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('lessons');
+  await lessonsPage.expectLoaded();
+  await flashcardsPage.expectHidden();
 });
 
-test('test_wordlist_recall_rate_badges_and_color_coding', async ({ page }) => {
-  await loginUser(page);
+test('test_wordlist_recall_rate_badges_and_color_coding', async ({
+  page,
+  login,
+  header,
+  drawer,
+  wordlistPage,
+}) => {
+  await login();
 
   // Seed 4 words with specific recall rates
   await page.evaluate(async () => {
@@ -132,14 +133,14 @@ test('test_wordlist_recall_rate_badges_and_color_coding', async ({ page }) => {
   });
 
   // Navigate to Wordlist
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-wordlist').click();
-  await expect(page.locator('#wordlist-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('wordlist');
+  await wordlistPage.expectLoaded();
 
-  const cardRed = page.locator(".word-card:has-text('word_red_zero')");
-  const cardYellow = page.locator(".word-card:has-text('word_yellow_mid')");
-  const cardGreen = page.locator(".word-card:has-text('word_green_high')");
-  const cardPerfect = page.locator(".word-card:has-text('word_perfect_master')");
+  const cardRed = wordlistPage.getWordCard('word_red_zero');
+  const cardYellow = wordlistPage.getWordCard('word_yellow_mid');
+  const cardGreen = wordlistPage.getWordCard('word_green_high');
+  const cardPerfect = wordlistPage.getWordCard('word_perfect_master');
 
   await expect(cardRed).toBeVisible();
   await expect(cardYellow).toBeVisible();
@@ -178,8 +179,14 @@ test('test_wordlist_recall_rate_badges_and_color_coding', async ({ page }) => {
   expect(boxGreen.y).toBeLessThan(boxPerfect.y);
 });
 
-test('test_wordlist_three_dot_menu_and_delete_word', async ({ page }) => {
-  await loginUser(page);
+test('test_wordlist_three_dot_menu_and_delete_word', async ({
+  page,
+  login,
+  header,
+  drawer,
+  wordlistPage,
+}) => {
+  await login();
 
   // Clean existing words
   await page.evaluate(async () => {
@@ -203,16 +210,14 @@ test('test_wordlist_three_dot_menu_and_delete_word', async ({ page }) => {
     });
   }, wordToDelete);
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-wordlist').click();
-  await expect(page.locator('#wordlist-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('wordlist');
+  await wordlistPage.expectLoaded();
 
-  const card = page.locator(`.word-card:has-text('${wordToDelete}')`);
+  const card = wordlistPage.getWordCard(wordToDelete);
   await expect(card).toBeVisible();
 
-  const dotsBtn = card.locator('.btn-word-dots-menu');
-  await expect(dotsBtn).toBeVisible();
-  await dotsBtn.click();
+  await wordlistPage.openWordMenu(wordToDelete);
 
   const dropdown = card.locator('.word-dropdown-menu');
   await expect(dropdown).toBeVisible();
@@ -222,11 +227,17 @@ test('test_wordlist_three_dot_menu_and_delete_word', async ({ page }) => {
 
   await deleteBtn.click();
 
-  await expect(page.locator(`.word-card:has-text('${wordToDelete}')`)).toHaveCount(0);
+  await expect(wordlistPage.getWordCard(wordToDelete)).toHaveCount(0);
 });
 
-test('test_wordlist_pagination_controls', async ({ page }) => {
-  await loginUser(page);
+test('test_wordlist_pagination_controls', async ({
+  page,
+  login,
+  header,
+  drawer,
+  wordlistPage,
+}) => {
+  await login();
 
   // Create 25 words
   await page.evaluate(async () => {
@@ -241,37 +252,38 @@ test('test_wordlist_pagination_controls', async ({ page }) => {
     }
   });
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-wordlist').click();
-  await expect(page.locator('#wordlist-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('wordlist');
+  await wordlistPage.expectLoaded();
 
-  const pagination = page.locator('.pagination-controls');
-  await expect(pagination).toBeVisible();
-  await expect(page.locator('#pagination-info')).toContainText('Page 1 of');
+  await expect(wordlistPage.pagination).toBeVisible();
+  await expect(wordlistPage.paginationInfo).toContainText('Page 1 of');
 
   // 20 cards on page 1
-  await expect(page.locator('.word-card')).toHaveCount(20);
+  await expect(wordlistPage.wordCards).toHaveCount(20);
 
-  const btnNext = page.locator('#btn-next-page');
-  await expect(btnNext).toBeEnabled();
-  await btnNext.scrollIntoViewIfNeeded();
-  await btnNext.dispatchEvent('click');
+  await expect(wordlistPage.btnNextPage).toBeEnabled();
+  await wordlistPage.nextPage();
 
-  await expect(page.locator('#pagination-info')).toContainText('Page 2 of');
-  const cardsPage2 = await page.locator('.word-card').count();
+  await expect(wordlistPage.paginationInfo).toContainText('Page 2 of');
+  const cardsPage2 = await wordlistPage.getWordCount();
   expect(cardsPage2).toBeGreaterThanOrEqual(1);
   expect(cardsPage2).toBeLessThanOrEqual(20);
 
-  const btnPrev = page.locator('#btn-prev-page');
-  await expect(btnPrev).toBeEnabled();
-  await btnPrev.scrollIntoViewIfNeeded();
-  await btnPrev.dispatchEvent('click');
-  await expect(page.locator('#pagination-info')).toContainText('Page 1 of');
-  await expect(page.locator('.word-card')).toHaveCount(20);
+  await expect(wordlistPage.btnPrevPage).toBeEnabled();
+  await wordlistPage.prevPage();
+  await expect(wordlistPage.paginationInfo).toContainText('Page 1 of');
+  await expect(wordlistPage.wordCards).toHaveCount(20);
 });
 
-test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({ page }) => {
-  await loginUser(page);
+test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({
+  page,
+  login,
+  header,
+  drawer,
+  wordlistPage,
+}) => {
+  await login();
 
   // Seed 8 words
   await page.evaluate(async () => {
@@ -286,11 +298,11 @@ test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({ page }) 
     }
   });
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-wordlist').click();
-  await expect(page.locator('#wordlist-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('wordlist');
+  await wordlistPage.expectLoaded();
 
-  const cards = page.locator('.word-card');
+  const cards = wordlistPage.wordCards;
   const bottomCard = cards.nth(4);
   await expect(bottomCard).toBeVisible();
 
@@ -303,7 +315,6 @@ test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({ page }) 
 
   const cardBox = await bottomCard.boundingBox();
   expect(cardBox).not.toBeNull();
-  const viewportHeight = page.viewportSize()!.height;
 
   // Verify the dropdown is visible — direction (up/down) is determined by available
   // space and may legitimately differ across device viewport heights.
@@ -318,12 +329,19 @@ test('test_wordlist_three_dot_menu_flip_up_and_outside_click', async ({ page }) 
   expect(hasElevatedZindex).toBeTruthy();
 
   // Click outside to close
-  await page.locator('.app-header').click();
+  await header.root.click();
   await expect(dropdown).not.toBeVisible();
 });
 
-test('test_wordlist_scroll_container_and_bottom_clearance', async ({ page }) => {
-  await loginUser(page);
+test('test_wordlist_scroll_container_and_bottom_clearance', async ({
+  page,
+  login,
+  header,
+  drawer,
+  dock,
+  wordlistPage,
+}) => {
+  await login();
 
   // Seed 12 words
   await page.evaluate(async () => {
@@ -338,13 +356,14 @@ test('test_wordlist_scroll_container_and_bottom_clearance', async ({ page }) => 
     }
   });
 
-  await page.locator('#burger-menu-btn').click();
-  await page.locator('#nav-link-wordlist').click();
-  await expect(page.locator('#wordlist-view')).toBeVisible();
+  await header.openBurgerMenu();
+  await drawer.navigateTo('wordlist');
+  await wordlistPage.expectLoaded();
 
   // Wait for all 12 cards to render before measuring/scrolling
-  await expect(page.locator('.word-card')).toHaveCount(12);
+  await expect(wordlistPage.wordCards).toHaveCount(12);
 
+  // App scroll container check
   const container = page.locator('.app-container');
   await expect(container).toBeVisible();
 
@@ -358,12 +377,11 @@ test('test_wordlist_scroll_container_and_bottom_clearance', async ({ page }) => 
   });
   await page.waitForTimeout(300);
 
-  const bottomDock = page.locator('.bottom-dock');
-  await expect(bottomDock).toBeVisible();
-  const dockBox = await bottomDock.boundingBox();
+  await dock.expectVisible();
+  const dockBox = await dock.root.boundingBox();
   expect(dockBox).not.toBeNull();
 
-  const lastCard = page.locator('.word-card').last();
+  const lastCard = wordlistPage.wordCards.last();
   await expect(lastCard).toBeVisible();
   const lastCardBox = await lastCard.boundingBox();
   expect(lastCardBox).not.toBeNull();

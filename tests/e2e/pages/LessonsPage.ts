@@ -27,12 +27,16 @@ export class LessonsPage extends BasePage {
     return await this.lessonCards.count();
   }
 
-  getLessonCard(indexOrNumber: number): Locator {
-    return this.page.locator(`#lesson-card-${indexOrNumber}`).or(this.lessonCards.nth(indexOrNumber));
+  getLessonCard(number: number): Locator {
+    return this.root.locator(`#lesson-card-${number}`);
   }
 
-  async openLesson(indexOrNumber: number): Promise<void> {
-    const card = this.getLessonCard(indexOrNumber);
+  getLessonCardByIndex(index: number): Locator {
+    return this.lessonCards.nth(index);
+  }
+
+  async openLesson(number: number): Promise<void> {
+    const card = this.getLessonCard(number);
     await card.click();
   }
 
