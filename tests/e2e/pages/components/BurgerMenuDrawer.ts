@@ -6,6 +6,7 @@ export type NavigationTarget = 'lessons' | 'flashcards' | 'wordlist' | 'settings
 export class BurgerMenuDrawer extends BaseComponent {
   readonly backdrop: Locator = this.page.locator('#menu-backdrop');
   readonly closeBtn: Locator = this.root.locator('#drawer-close-btn');
+  readonly drawerHeader: Locator = this.root.locator('.drawer-header');
   readonly navLessons: Locator = this.root.locator('#nav-link-lessons');
   readonly navFlashcards: Locator = this.root.locator('#nav-link-flashcards');
   readonly navWordlist: Locator = this.root.locator('#nav-link-wordlist');

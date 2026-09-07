@@ -1,10 +1,15 @@
 import { Page, Locator } from '@playwright/test';
 
 export abstract class BasePage {
-  constructor(readonly page: Page) {}
-
   abstract readonly url: string;
   abstract readonly root: Locator;
+  readonly appContainer: Locator;
+  readonly toast: Locator;
+
+  constructor(readonly page: Page) {
+    this.appContainer = this.page.locator('.app-container');
+    this.toast = this.page.locator('.toast');
+  }
 
   async goto(): Promise<void> {
     await this.page.goto(this.url);

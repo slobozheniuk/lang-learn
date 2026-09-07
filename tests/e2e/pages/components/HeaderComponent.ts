@@ -6,6 +6,7 @@ export class HeaderComponent extends BaseComponent {
   readonly brandLink: Locator = this.root.locator('.brand');
   readonly btnProfileSwitcher: Locator = this.root.locator('#profile-switcher-btn');
   readonly btnSettings: Locator = this.root.locator('#btn-settings');
+  readonly pageTitle: Locator = this.root.locator('#page-title');
 
   constructor(page: Page) {
     super(page, page.locator('.app-header'));

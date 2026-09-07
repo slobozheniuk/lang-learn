@@ -186,3 +186,27 @@ flowchart TD
 - **Operations**:
   - `addWordOrText(text, submitVia)`: Inputs text and submits via send button or Enter key.
   - `expectVisible()` / `expectHidden()`: Asserts dock visibility.
+
+---
+
+## E2E Test Suite Specifications
+
+The Playwright test suite is partitioned into dedicated page tests and cross-cutting functional tests:
+
+### Page-Specific Specifications
+| Test Spec | Target Page Object / Component | Test Count | Description |
+|---|---|---|---|
+| [`tests/e2e/auth.spec.ts`](../auth.spec.ts) | `AuthPage` | 2 | Login authentication & registration workflows |
+| [`tests/e2e/lessons.spec.ts`](../lessons.spec.ts) | `LessonsPage` | 4 | Lesson cards grid, status badges, contextual menu, deletion |
+| [`tests/e2e/lesson-detail.spec.ts`](../lesson-detail.spec.ts) | `LessonDetailPage` | 4 | Reading chunk selection, prepare lesson, quiz mode, cards drill |
+| [`tests/e2e/flashcards.spec.ts`](../flashcards.spec.ts) | `FlashcardsPage` | 6 | SRS review sessions, flips, ease ratings, audio synthesis, deck restart |
+| [`tests/e2e/wordlist.spec.ts`](../wordlist.spec.ts) | `WordlistPage` | 4 | Word cards, recall badges, pagination, deletion |
+| [`tests/e2e/settings.spec.ts`](../settings.spec.ts) | `SettingsPage` | 1 | Settings view profile verification and logout flow |
+
+### Cross-Cutting & Functional Specifications
+| Test Spec | Components Involved | Test Count | Description |
+|---|---|---|---|
+| [`tests/e2e/navigation.spec.ts`](../navigation.spec.ts) | `HeaderComponent`, `BurgerMenuDrawer` | 3 | Drawer open/close, backdrop dismiss, multi-page switching, brand link |
+| [`tests/e2e/quick-input.spec.ts`](../quick-input.spec.ts) | `BottomDockComponent`, `LessonsPage` | 3 | Single-word translation vs auto lesson generation (>4 words) |
+| [`tests/e2e/mobile-layout.spec.ts`](../mobile-layout.spec.ts) | All Views & Components | 3 | Mobile viewport (no overflow), dock clearance, fixed elements |
+

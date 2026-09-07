@@ -40,6 +40,7 @@ export class LessonDetailPage extends BasePage {
   readonly btnNextCard: Locator = this.root.locator('#btn-lesson-next');
   readonly cardCounter: Locator = this.root.locator('.lesson-detail-counter');
   readonly cardCompletedState: Locator = this.root.locator('#lesson-completed-state');
+  readonly cardCompletedTitle: Locator = this.cardCompletedState.locator('.empty-title');
   readonly btnRestartLesson: Locator = this.root.locator('#btn-restart-lesson');
   readonly btnLessonToQuiz: Locator = this.root.locator('#btn-lesson-to-quiz');
   readonly btnCardsToReading: Locator = this.root.locator('#btn-cards-to-reading');
@@ -84,8 +85,12 @@ export class LessonDetailPage extends BasePage {
   }
 
   // Quiz Mode Operations
+  getQuizOption(index: number): Locator {
+    return this.root.locator(`#quiz-option-${index}`);
+  }
+
   async selectQuizOption(index: number): Promise<void> {
-    await this.root.locator(`#quiz-option-${index}`).click();
+    await this.getQuizOption(index).click();
   }
 
   async nextQuizQuestion(): Promise<void> {

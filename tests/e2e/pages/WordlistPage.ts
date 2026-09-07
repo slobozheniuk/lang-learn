@@ -40,23 +40,45 @@ export class WordlistPage extends BasePage {
     return this.root.locator(`.word-card:has-text('${textOrIndex}')`);
   }
 
+  getCardRecallBadge(card: Locator): Locator {
+    return card.locator('.word-recall-badge');
+  }
+
+  getCardWord(card: Locator): Locator {
+    return card.locator('.word-text-bold strong');
+  }
+
+  getCardTranslation(card: Locator): Locator {
+    return card.locator('.word-translation-sub');
+  }
+
+  getCardDropdown(card: Locator): Locator {
+    return card.locator('.word-dropdown-menu');
+  }
+
+  getCardDeleteBtn(card: Locator): Locator {
+    return card.locator('.dropdown-item-delete');
+  }
+
+  getCardDotsBtn(card: Locator): Locator {
+    return card.locator('.btn-word-dots-menu');
+  }
+
   async openWordMenu(textOrIndex: string | number): Promise<void> {
     const card = this.getWordCard(textOrIndex);
-    const dotsBtn = card.locator('.btn-word-dots-menu');
-    await dotsBtn.click();
-    await expect(card.locator('.word-dropdown-menu')).toBeVisible();
+    await this.getCardDotsBtn(card).click();
+    await expect(this.getCardDropdown(card)).toBeVisible();
   }
 
   async deleteWord(textOrIndex: string | number): Promise<void> {
     const card = this.getWordCard(textOrIndex);
     await this.openWordMenu(textOrIndex);
-    const deleteBtn = card.locator('.dropdown-item-delete');
-    await deleteBtn.click();
+    await this.getCardDeleteBtn(card).click();
   }
 
   async getRecallRate(textOrIndex: string | number): Promise<string> {
     const card = this.getWordCard(textOrIndex);
-    return (await card.locator('.word-recall-badge').innerText()).trim();
+    return (await this.getCardRecallBadge(card).innerText()).trim();
   }
 
   async nextPage(): Promise<void> {

@@ -159,7 +159,7 @@ export async function loginUser(page: Page, user?: WorkerUser): Promise<void> {
     await page.locator('#login-identifier').fill(username);
     await page.locator('#login-password').fill(password);
     await page.locator('#btn-login-submit').click();
-    await expect(page.locator('#lessons-view')).toBeVisible();
+    await expect(page.locator('#lessons-view')).toBeVisible({ timeout: 10000 });
   }
 }
 

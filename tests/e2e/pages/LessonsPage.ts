@@ -35,6 +35,22 @@ export class LessonsPage extends BasePage {
     return this.lessonCards.nth(index);
   }
 
+  getCardTitle(card: Locator): Locator {
+    return card.locator('.lesson-title');
+  }
+
+  getCardDropdown(card: Locator): Locator {
+    return card.locator('.lesson-dropdown-menu');
+  }
+
+  getCardDeleteBtn(card: Locator): Locator {
+    return card.locator('.dropdown-item-delete');
+  }
+
+  getCardDotsBtn(card: Locator): Locator {
+    return card.locator('.btn-lesson-dots-menu');
+  }
+
   async openLesson(number: number): Promise<void> {
     const card = this.getLessonCard(number);
     await card.click();
@@ -42,20 +58,18 @@ export class LessonsPage extends BasePage {
 
   async openLessonMenu(indexOrNumber: number): Promise<void> {
     const card = this.getLessonCard(indexOrNumber);
-    const dotsBtn = card.locator('.btn-lesson-dots-menu');
-    await dotsBtn.click();
-    await expect(card.locator('.lesson-dropdown-menu')).toBeVisible();
+    await this.getCardDotsBtn(card).click();
+    await expect(this.getCardDropdown(card)).toBeVisible();
   }
 
   async deleteLesson(indexOrNumber: number): Promise<void> {
     const card = this.getLessonCard(indexOrNumber);
     await this.openLessonMenu(indexOrNumber);
-    const deleteBtn = card.locator('.dropdown-item-delete');
-    await deleteBtn.click();
+    await this.getCardDeleteBtn(card).click();
   }
 
   async expectLessonTitle(indexOrNumber: number, title: string): Promise<void> {
     const card = this.getLessonCard(indexOrNumber);
-    await expect(card.locator('.lesson-title')).toContainText(title);
+    await expect(this.getCardTitle(card)).toContainText(title);
   }
 }
