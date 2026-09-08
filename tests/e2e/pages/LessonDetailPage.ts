@@ -20,6 +20,7 @@ export class LessonDetailPage extends BasePage {
   readonly readingChunks: Locator = this.root.locator('.reading-chunk-chip');
   readonly selectedChunksCount: Locator = this.root.locator('#selected-chunks-count');
   readonly btnPrepareLesson: Locator = this.root.locator('#btn-prepare-lesson');
+  readonly btnContinue: Locator = this.btnPrepareLesson;
 
   // Quiz Mode
   readonly quizContainer: Locator = this.root.locator('#quiz-study-container');
@@ -82,6 +83,10 @@ export class LessonDetailPage extends BasePage {
 
   async prepareLesson(): Promise<void> {
     await this.btnPrepareLesson.click();
+  }
+
+  async continueReview(): Promise<void> {
+    await this.btnContinue.click();
   }
 
   // Quiz Mode Operations

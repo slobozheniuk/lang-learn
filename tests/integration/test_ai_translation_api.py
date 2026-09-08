@@ -33,7 +33,7 @@ def test_submit_text_single_word_creates_flashcard(
     assert word["context_phrase"] is not None
 
 
-def test_submit_text_five_or_more_words_creates_in_progress_lesson_and_extracts_words(
+def test_submit_text_five_or_more_words_creates_in_progress_lesson_without_words_until_prepare(
     client: TestClient, auth_headers: dict[str, str]
 ):
     multi_text = "The dog barked loudly. The cat ran away into the house!"
@@ -55,9 +55,39 @@ def test_submit_text_five_or_more_words_creates_in_progress_lesson_and_extracts_
     assert data["lesson_in_progress"] is True
     assert data["lesson"] is not None
     assert data["lesson"]["status"] in ["processing", "ready"]
-    assert len(data["words"]) >= 2
+    # Words must NOT be added to wordlist on initial text submission for lesson-eligible text
+    assert len(data["words"]) == 0
 
-    # Under 5 words does NOT create a lesson
+    lesson_id = data["lesson"]["id"]
+
+    # Verify user's wordlist is empty before text review selection
+    wordlist_res = client.get("/api/v1/words/", headers=auth_headers)
+    assert wordlist_res.status_code == 200
+    assert len(wordlist_res.json()) == 0
+
+    # User reviews text and clicks Continue with selected words in prepare endpoint
+    prepare_res = client.post(
+        f"/api/v1/lessons/{lesson_id}/prepare",
+        headers=auth_headers,
+        json={
+            "selected_words": ["barked"],
+            "source_lang": "ru",
+            "target_lang": "en",
+        },
+    )
+    assert prepare_res.status_code == 200
+    prepare_data = prepare_res.json()
+    assert len(prepare_data["words"]) == 1
+    assert prepare_data["words"][0]["text"] == "barked"
+
+    # Now, ONLY the selected word appears in the user's wordlist
+    wordlist_after_res = client.get("/api/v1/words/", headers=auth_headers)
+    assert wordlist_after_res.status_code == 200
+    after_words = wordlist_after_res.json()
+    assert len(after_words) == 1
+    assert after_words[0]["text"] == "barked"
+
+    # Under 5 words does NOT create a lesson, extracts words directly
     short_text = "The dog barked loudly"  # 4 words
     short_res = client.post(
         "/api/v1/words/submit-text",

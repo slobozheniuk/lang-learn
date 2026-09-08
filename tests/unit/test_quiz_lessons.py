@@ -208,7 +208,7 @@ def test_submit_text_sentence_count_and_multi_sentence_flag(client: TestClient, 
     assert data2["can_create_lesson"] is True
     assert data2["lesson_in_progress"] is True
     assert data2["lesson"] is not None
-    assert len(data2["words"]) >= 1
+    assert len(data2["words"]) == 0
 
 
 def test_generate_quiz_endpoint(client: TestClient, db_session: Session):

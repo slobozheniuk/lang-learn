@@ -94,7 +94,7 @@ flowchart TD
   - `switchMode('reading' | 'quiz' | 'cards' | 'list')`: Switches study modes via header mode toggles.
   - **Reading Mode**:
     - `selectChunk(index)`: Toggles selection on clickable word/phrase chips (`.reading-chunk-chip`).
-    - `prepareLesson()`: Submits selected words via `#btn-prepare-lesson` to generate quizzes.
+    - `prepareLesson()` / `continueReview()`: Submits selected words via `#btn-prepare-lesson` (Continue button) to add them to wordlist and generate quizzes.
   - **Quiz Mode**:
     - `selectQuizOption(index)`: Selects multiple-choice option (`#quiz-option-${n}`).
     - `nextQuizQuestion()`: Advances to the next question or finishes quiz (`#btn-next-quiz-question`).

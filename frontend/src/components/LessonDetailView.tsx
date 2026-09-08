@@ -493,7 +493,9 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
             >
               {isPreparing
                 ? '⏳ Preparing Lesson & Quiz...'
-                : `Prepare Lesson (${selectedChunkIndices.size} ${selectedChunkIndices.size === 1 ? 'word' : 'words'} selected)`}
+                : selectedChunkIndices.size > 0
+                ? `Continue (${selectedChunkIndices.size} ${selectedChunkIndices.size === 1 ? 'word' : 'words'} selected)`
+                : 'Continue'}
             </button>
           </div>
         </div>

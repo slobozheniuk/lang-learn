@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user, get_optional_current_user
+from app.crud.job import create_job, update_job
 from app.crud.language import get_language_by_code
 from app.crud.lesson import add_word_to_lesson, create_lesson, get_lesson_by_id
 from app.database import SessionLocal, get_db
@@ -68,14 +69,14 @@ async def submit_text(
             detail="Text cannot be empty.",
         )
 
-    # Always extract vocabulary words & flashcards for SRS study
-    job, _, words = await job_queue_service.submit_text(
-        db=db,
-        user_id=current_user.id,
-        text=request.text,
-        source_lang=request.source_lang,
-        target_lang=request.target_lang,
-        wait=request.wait,
+    active_profile = current_user.get_active_profile()
+    source_lang = (
+        request.source_lang
+        or (active_profile.source_language if active_profile else "en")
+    )
+    target_lang = (
+        request.target_lang
+        or (active_profile.target_language if active_profile else "en")
     )
 
     words_in_text = request.text.strip().split()
@@ -83,12 +84,6 @@ async def submit_text(
     sentence_count = count_sentences(request.text)
     should_create_lesson = word_count >= 5
 
-    words_read = [
-        WordService.to_read(w, user_id=current_user.id, db=db)
-        for w in words
-    ]
-
-    lesson_read = None
     if should_create_lesson:
         snippet = " ".join(words_in_text[:4])
         if len(words_in_text) > 4:
@@ -98,29 +93,48 @@ async def submit_text(
             lesson_title = lesson_title[:250]
 
         lesson_in = LessonCreate(
-            source_lang=request.source_lang,
-            target_lang=request.target_lang,
+            source_lang=source_lang,
+            target_lang=target_lang,
             title=lesson_title,
             raw_input=request.text,
             input_type="reading",
             is_completed=False,
         )
         created_lesson = create_lesson(db, user_id=current_user.id, lesson_in=lesson_in, status="processing")
-        for idx, w in enumerate(words):
-            add_word_to_lesson(db, lesson_id=created_lesson.id, word_id=w.id, order_index=idx)
-        db.commit()
-        db.refresh(created_lesson)
+
+        job = create_job(
+            db=db,
+            user_id=current_user.id,
+            input_text=request.text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            type="lesson_generation",
+            lesson_id=created_lesson.id,
+        )
+        update_job(
+            db,
+            job_id=job.id,
+            status="completed",
+            lesson_id=created_lesson.id,
+            result_json=json.dumps({
+                "items_count": 0,
+                "is_lesson": True,
+                "is_multi_sentence": sentence_count > 1,
+                "can_create_lesson": True,
+                "lesson_id": created_lesson.id,
+                "word_ids": [],
+            }),
+        )
 
         # Queue background chunking
         background_tasks.add_task(
             _prepare_lesson_in_background,
             lesson_id=created_lesson.id,
             text=request.text,
-            source_lang=request.source_lang,
-            target_lang=request.target_lang,
+            source_lang=source_lang,
+            target_lang=target_lang,
         )
 
-        lesson_words = [WordService.to_read(w, user_id=current_user.id, db=db) for w in words]
         lesson_read = LessonRead(
             id=created_lesson.id,
             user_id=created_lesson.user_id,
@@ -132,19 +146,48 @@ async def submit_text(
             status=created_lesson.status,
             created_at=created_lesson.created_at,
             updated_at=created_lesson.updated_at,
-            words=lesson_words,
+            words=[],
         )
+
+        return TextSubmissionResponse(
+            job_id=job.id,
+            status=job.status,
+            is_lesson=True,
+            is_multi_sentence=sentence_count > 1,
+            sentence_count=sentence_count,
+            word_count=word_count,
+            can_create_lesson=True,
+            lesson_in_progress=True,
+            lesson=lesson_read,
+            words=[],
+            error_message=None,
+        )
+
+    # Not eligible for lesson creation (< 5 words): extract vocabulary words for SRS
+    job, _, words = await job_queue_service.submit_text(
+        db=db,
+        user_id=current_user.id,
+        text=request.text,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        wait=request.wait,
+    )
+
+    words_read = [
+        WordService.to_read(w, user_id=current_user.id, db=db)
+        for w in words
+    ]
 
     return TextSubmissionResponse(
         job_id=job.id,
         status=job.status,
-        is_lesson=should_create_lesson,
-        is_multi_sentence=sentence_count > 1,
+        is_lesson=False,
+        is_multi_sentence=False,
         sentence_count=sentence_count,
         word_count=word_count,
-        can_create_lesson=should_create_lesson,
-        lesson_in_progress=should_create_lesson,
-        lesson=lesson_read,
+        can_create_lesson=False,
+        lesson_in_progress=False,
+        lesson=None,
         words=words_read,
         error_message=job.error_message,
     )
