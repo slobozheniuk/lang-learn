@@ -2,6 +2,7 @@ export interface User {
   id: number;
   username: string;
   is_active?: boolean;
+  is_admin?: boolean;
   profiles?: LearningProfile[];
 }
 
@@ -83,7 +84,44 @@ export interface DueReviewItem {
   is_new?: boolean;
 }
 
-export type PageView = 'lessons' | 'flashcards' | 'wordlist' | 'settings';
+export type PageView = 'lessons' | 'flashcards' | 'wordlist' | 'settings' | 'admin';
+
+export interface AdminUserStats {
+  id: number;
+  username: string;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at: string;
+  lesson_count: number;
+  word_count: number;
+}
+
+export interface JourneyAction {
+  name: string;
+  timestamp: string;
+  stage: string;
+  details?: Record<string, any>;
+}
+
+export interface JourneyLLMInteraction {
+  step: string;
+  prompt: string;
+  output: string;
+  timestamp: string;
+}
+
+export interface JourneyLog {
+  journey_id: string;
+  journey_type: 'word_adding' | 'lesson_creation' | string;
+  user_id?: number | null;
+  username?: string | null;
+  timestamp: string;
+  status: string;
+  input_text?: string;
+  chosen_chunks: string[];
+  actions: JourneyAction[];
+  llm_interactions: JourneyLLMInteraction[];
+}
 
 export interface QuizQuestion {
   id?: number;

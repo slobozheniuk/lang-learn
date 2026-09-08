@@ -1,7 +1,7 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { BaseComponent } from '../BaseComponent';
 
-export type NavigationTarget = 'lessons' | 'flashcards' | 'wordlist' | 'settings';
+export type NavigationTarget = 'lessons' | 'flashcards' | 'wordlist' | 'settings' | 'admin';
 
 export class BurgerMenuDrawer extends BaseComponent {
   readonly backdrop: Locator = this.page.locator('#menu-backdrop');
@@ -11,6 +11,7 @@ export class BurgerMenuDrawer extends BaseComponent {
   readonly navFlashcards: Locator = this.root.locator('#nav-link-flashcards');
   readonly navWordlist: Locator = this.root.locator('#nav-link-wordlist');
   readonly navSettings: Locator = this.root.locator('#nav-link-settings');
+  readonly navAdmin: Locator = this.root.locator('#nav-link-admin');
 
   constructor(page: Page) {
     super(page, page.locator('#burger-menu-drawer'));
@@ -53,7 +54,14 @@ export class BurgerMenuDrawer extends BaseComponent {
       case 'settings':
         await this.navSettings.click();
         break;
+      case 'admin':
+        await this.navAdmin.click();
+        break;
     }
     await this.expectClosed();
+  }
+
+  async navigateToAdmin(): Promise<void> {
+    await this.navigateTo('admin');
   }
 }

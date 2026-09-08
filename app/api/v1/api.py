@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.admin import router as admin_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.jobs import router as jobs_router
 from app.api.v1.languages import router as languages_router
@@ -19,3 +20,4 @@ api_router.include_router(words_router, prefix="/words", tags=["words"])
 api_router.include_router(review_router, prefix="/review", tags=["review"])
 api_router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 api_router.include_router(lessons_router, prefix="/lessons", tags=["lessons"])
+api_router.include_router(admin_router, prefix="/admin", tags=["admin"])

@@ -10,6 +10,7 @@ import {
   BurgerMenuDrawer,
   BottomDockComponent,
   ProfileSwitcherDropdown,
+  AdminPage,
 } from './pages';
 
 export { expect };
@@ -21,6 +22,7 @@ export interface PageFixtures {
   flashcardsPage: FlashcardsPage;
   wordlistPage: WordlistPage;
   settingsPage: SettingsPage;
+  adminPage: AdminPage;
   header: HeaderComponent;
   drawer: BurgerMenuDrawer;
   dock: BottomDockComponent;
@@ -239,6 +241,9 @@ export const test = base.extend<
   },
   settingsPage: async ({ page }, use) => {
     await use(new SettingsPage(page));
+  },
+  adminPage: async ({ page }, use) => {
+    await use(new AdminPage(page));
   },
   header: async ({ page }, use) => {
     await use(new HeaderComponent(page));

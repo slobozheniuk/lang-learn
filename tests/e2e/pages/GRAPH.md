@@ -15,6 +15,8 @@ flowchart TD
     FlashcardsView["FlashcardsPage<br>(#flashcards-view)"]
     WordlistView["WordlistPage<br>(#wordlist-view)"]
     SettingsView["SettingsPage<br>(#settings-view)"]
+    AdminView["AdminPage<br>(#admin-view)"]
+    AdminJourneyDetailView["AdminJourneyDetailView<br>(#admin-journey-detail-view)"]
 
     %% Overlays & Drawers
     BurgerMenu["BurgerMenuDrawer<br>(#burger-menu-drawer)"]
@@ -37,12 +39,18 @@ flowchart TD
     BurgerMenu -->|"Select 'Flashcards' (#nav-link-flashcards)"| FlashcardsView
     BurgerMenu -->|"Select 'Wordlist' (#nav-link-wordlist)"| WordlistView
     BurgerMenu -->|"Select 'Settings' (#nav-link-settings)"| SettingsView
+    BurgerMenu -->|"Select 'Admin' (#nav-link-admin) [Admin only]"| AdminView
     BurgerMenu -->|"Click Backdrop / Close / Escape"| LessonsView
+
+    %% Admin Subview Navigation
+    AdminView -->|"Click Journey Button (.admin-journey-item-btn)"| AdminJourneyDetailView
+    AdminJourneyDetailView -->|"Click Back (#btn-back-to-journeys)"| AdminView
 
     %% Header Direct Navigation (From Any Authenticated View)
     FlashcardsView -->|"Click Brand Link (.brand)"| LessonsView
     WordlistView -->|"Click Brand Link (.brand)"| LessonsView
     SettingsView -->|"Click Brand Link (.brand)"| LessonsView
+    AdminView -->|"Click Brand Link (.brand)"| LessonsView
 
     FlashcardsView -->|"Click Settings (#btn-settings)"| SettingsView
     WordlistView -->|"Click Settings (#btn-settings)"| SettingsView

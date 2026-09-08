@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://inference-api.nousresearch.com/v1"
     LLM_MODEL: str = "google/gemini-3.7-flash"
 
+    # Admin Settings
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin123"
+
     # Logging Settings
     LOG_DIR: str = "logs"
     LOG_LEVEL: str = "INFO"

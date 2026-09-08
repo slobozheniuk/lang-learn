@@ -41,12 +41,13 @@ lang-learn/
 │   │       ├── lessons.py      # Lesson generation, list, detail, submissions
 │   │       ├── words.py        # Words and vocabulary retrieval
 │   │       ├── review.py       # SRS review sessions & submissions
-│   │       └── jobs.py         # Async job status & queue polling
+│   │       ├── jobs.py         # Async job status & queue polling
+│   │       └── admin.py        # Admin stats & log journey inspection
 │   ├── auth/                   # Authentication & security
 │   │   ├── security.py         # Password hashing (bcrypt) & JWT encode/decode
-│   │   └── dependencies.py     # FastAPI dependencies (get_current_user)
+│   │   └── dependencies.py     # FastAPI dependencies (get_current_user, get_current_admin_user)
 │   ├── crud/                   # Database CRUD operations
-│   │   ├── user.py             # User DB queries
+│   │   ├── user.py             # User DB queries & ensure_admin_user
 │   │   ├── language.py         # Language seeding and queries
 │   │   ├── lesson.py           # Lesson DB operations
 │   │   ├── word.py             # Word & vocabulary operations
@@ -55,7 +56,7 @@ lang-learn/
 │   │   └── job.py              # Background job tracking records
 │   ├── models/                 # SQLAlchemy ORM models
 │   │   ├── base.py             # Declarative base & TimestampMixin
-│   │   ├── user.py             # User model
+│   │   ├── user.py             # User model (is_admin flag)
 │   │   ├── learning_profile.py # User learning profiles (source/target language)
 │   │   ├── language.py         # Supported languages
 │   │   ├── lesson.py           # Lesson records & generated content
@@ -72,6 +73,8 @@ lang-learn/
 │   │   ├── scheduler.py        # Background periodic job scheduler
 │   │   ├── word_service.py     # Vocabulary extraction & translation logic
 │   │   ├── review_service.py   # SRS session builder & review processing
+│   │   ├── journey_logger.py   # Structured journey logger writing events to app.log
+│   │   ├── log_parser.py       # Log parser extracting user journeys, LLM prompts/outputs
 │   │   └── llm/                # LLM integration layer
 │   │       ├── base.py         # BaseLLMProvider interface
 │   │       ├── factory.py      # Provider factory (OpenAI vs Mock)
@@ -93,7 +96,7 @@ lang-learn/
 │       ├── components/         # React UI components
 │       │   ├── Header.tsx           # Top navigation bar & user status
 │       │   ├── BottomDock.tsx       # Mobile bottom navigation dock
-│       │   ├── BurgerMenu.tsx       # Slide-out drawer menu
+│       │   ├── BurgerMenu.tsx       # Slide-out drawer menu (with Admin link)
 │       │   ├── AuthView.tsx         # Login / Registration views
 │       │   ├── ProfileSwitcher.tsx  # Language profile selection & modal
 │       │   ├── LessonsView.tsx      # Lesson generator form & lesson list
@@ -102,7 +105,8 @@ lang-learn/
 │       │   ├── FlashcardsView.tsx   # SRS flashcard interactive review player
 │       │   ├── WordlistView.tsx     # Dictionary / word list overview
 │       │   ├── WordItem.tsx         # Word item card with mastery score & associations
-│       │   └── SettingsView.tsx     # App settings & preferences
+│       │   ├── SettingsView.tsx     # App settings & preferences
+│       │   └── AdminView.tsx        # Admin dashboard (Users, Journeys list & detail views)
 │       └── utils/              # Helper utilities
 ├── alembic/                    # Database migration scripts
 │   ├── env.py
@@ -110,7 +114,7 @@ lang-learn/
 ├── tests/                      # Automated test suite
 │   ├── conftest.py             # Pytest fixtures and mock DB setups
 │   ├── unit/                   # Unit tests (SRS engine, LLM parser, CRUD)
-│   ├── integration/            # API endpoint integration tests
+│   ├── integration/            # API endpoint integration tests (auth, words, lessons, admin)
 │   └── e2e/                    # Playwright E2E test suite (Mobile Chrome & Safari)
 │       ├── fixtures.ts         # Custom fixtures (auth, worker users, page objects)
 │       ├── pages/              # Page Object Models, components & GRAPH.md
@@ -118,9 +122,9 @@ lang-learn/
 │       │   ├── components/     # Header, BottomDock, BurgerMenuDrawer
 │       │   ├── dialogs/        # ProfileSwitcherDropdown
 │       │   ├── AuthPage.ts, LessonsPage.ts, LessonDetailPage.ts
-│       │   ├── FlashcardsPage.ts, WordlistPage.ts, SettingsPage.ts
+│       │   ├── FlashcardsPage.ts, WordlistPage.ts, SettingsPage.ts, AdminPage.ts
 │       │   └── GRAPH.md        # Application navigation flowchart & operations catalog
-│       └── *.spec.ts           # Modular page-specific & functional E2E test specs
+│       └── *.spec.ts           # Modular page-specific & functional E2E test specs (including admin.spec.ts)
 ├── logs/                       # Rotating application logs
 ├── lang_learn.db               # Local SQLite database file
 ├── alembic.ini                 # Alembic configuration
@@ -147,6 +151,13 @@ lang-learn/
    - `FlashcardsView.tsx` loads due cards from `/api/v1/review/session`.
    - Card reviews submit ease ratings (1-5) -> `SRSEngine` updates `UserWordStats` (ease factor, interval, next review timestamp).
 
+4. **Admin Dashboard & Journey Auditing**:
+   - Seeded admin credentials configured via `.env` (`ADMIN_USERNAME` and `ADMIN_PASSWORD`), ensured on startup via `ensure_admin_user()`.
+   - `AdminView.tsx` -> `/api/v1/admin/users` displays all registered users and their lesson/word stats.
+   - Structured events logged via `journey_logger.py` into `logs/app.log`.
+   - `AdminView.tsx` -> `/api/v1/admin/logs/journeys` parses `logs/app.log` via `log_parser.py` into interactive journey buttons (`word adding` or `lesson creation`).
+   - Clicking a journey card opens a dedicated Journey Detail view with a Back button (`#btn-back-to-journeys`), progress of actions stepper, chosen chunks chips, and full LLM prompts & outputs.
+
 ---
 
 ## 4. E2E Testing & Page Object Model (POM) Maintenance
@@ -156,6 +167,6 @@ lang-learn/
 - **POM Maintenance on Code Changes**:
   - Whenever frontend UI components, views, dialogs, selectors, or user flows change, keep the Page Object Model (POM) actual by running the `playwright-page-objects` skill (`.agents/skills/playwright-page-objects/SKILL.md`).
   - Use the skill to crawl/inspect modified views, re-generate or update relevant Page Objects and Components in [`tests/e2e/pages/`](tests/e2e/pages/), and update the navigation graph in [`tests/e2e/pages/GRAPH.md`](tests/e2e/pages/GRAPH.md).
-  - Re-run `npx playwright test` to ensure that all 9 specification suites pass without regression:
-    - Page tests: `auth.spec.ts`, `lessons.spec.ts`, `lesson-detail.spec.ts`, `flashcards.spec.ts`, `wordlist.spec.ts`, `settings.spec.ts`.
+  - Re-run `npx playwright test` to ensure that all 10 specification suites pass without regression:
+    - Page tests: `auth.spec.ts`, `lessons.spec.ts`, `lesson-detail.spec.ts`, `flashcards.spec.ts`, `wordlist.spec.ts`, `settings.spec.ts`, `admin.spec.ts`.
     - Cross-cutting tests: `navigation.spec.ts`, `quick-input.spec.ts`, `mobile-layout.spec.ts`.

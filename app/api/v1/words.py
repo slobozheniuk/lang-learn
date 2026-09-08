@@ -12,7 +12,9 @@ from app.models.user import User
 from app.schemas.job import TextSubmissionRequest, TextSubmissionResponse
 from app.schemas.lesson import LessonCreate, LessonRead
 from app.schemas.word import WordCreate, WordRead
+import time
 from app.services.job_queue import count_sentences, job_queue_service
+from app.services.journey_logger import log_journey_event
 from app.services.nlp import nlp_service
 from app.services.word_service import WordService
 
@@ -25,6 +27,8 @@ async def _prepare_lesson_in_background(
     text: str,
     source_lang: str,
     target_lang: str,
+    user_id: int | None = None,
+    username: str | None = None,
 ) -> None:
     """Segment raw text into reading chunks via spaCy + phrasal verb postprocessing."""
     try:
@@ -42,6 +46,15 @@ async def _prepare_lesson_in_background(
                 lesson.status = "ready"
                 session.commit()
                 logger.info(f"Background lesson generation ready: lesson_id={lesson_id}, title='{lesson.title}'")
+                log_journey_event(
+                    journey_id=f"lesson_{lesson_id}",
+                    journey_type="lesson_creation",
+                    stage="chunking_completed",
+                    action="Text Chunking Completed",
+                    user_id=user_id,
+                    username=username,
+                    data={"chunks_count": len(chunk_response.chunks), "title": chunk_response.title, "preview": text[:60]},
+                )
     except Exception as e:
         logger.error(f"Error preparing lesson {lesson_id} in background: {e}", exc_info=True)
         with SessionLocal() as session:
@@ -126,6 +139,17 @@ async def submit_text(
             }),
         )
 
+        # Log journey event for lesson submission
+        log_journey_event(
+            journey_id=f"lesson_{created_lesson.id}",
+            journey_type="lesson_creation",
+            stage="text_submitted",
+            action="Lesson Text Submitted",
+            user_id=current_user.id,
+            username=current_user.username,
+            data={"text": request.text, "word_count": word_count, "lesson_id": created_lesson.id},
+        )
+
         # Queue background chunking
         background_tasks.add_task(
             _prepare_lesson_in_background,
@@ -133,6 +157,8 @@ async def submit_text(
             text=request.text,
             source_lang=source_lang,
             target_lang=target_lang,
+            user_id=current_user.id,
+            username=current_user.username,
         )
 
         lesson_read = LessonRead(
@@ -164,6 +190,17 @@ async def submit_text(
         )
 
     # Not eligible for lesson creation (< 5 words): extract vocabulary words for SRS
+    journey_id = f"word_submit_{current_user.id}_{int(time.time() * 1000)}"
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="word_adding",
+        stage="text_submitted",
+        action="Text Submitted for Word Addition",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={"text": request.text, "word_count": word_count},
+    )
+
     job, _, words = await job_queue_service.submit_text(
         db=db,
         user_id=current_user.id,
@@ -177,6 +214,16 @@ async def submit_text(
         WordService.to_read(w, user_id=current_user.id, db=db)
         for w in words
     ]
+
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="word_adding",
+        stage="words_created",
+        action="Words Added to Vocabulary",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={"words": [w.text for w in words], "count": len(words)},
+    )
 
     return TextSubmissionResponse(
         job_id=job.id,
@@ -219,6 +266,18 @@ def create_word(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve created word",
         )
+
+    journey_id = f"word_create_{current_user.id}_{word.id}"
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="word_adding",
+        stage="word_created",
+        action="Word Created Manually",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={"word": word_in.text, "translation": word_in.translation, "language": word_in.language_code},
+    )
+
     return word_read
 
 

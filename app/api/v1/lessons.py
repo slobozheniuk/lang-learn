@@ -30,6 +30,7 @@ from app.schemas.lesson import (
 )
 from app.schemas.word import WordRead
 from app.services.job_queue import count_sentences, job_queue_service
+from app.services.journey_logger import log_journey_event
 from app.services.nlp import nlp_service
 from app.services.word_service import WordService
 
@@ -410,6 +411,17 @@ async def prepare_lesson_endpoint(
             detail="No valid selectable words/chunks were provided.",
         )
 
+    journey_id = f"lesson_{lesson.id}" if lesson else f"lesson_prepare_{current_user.id}"
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="lesson_creation",
+        stage="chunks_selected",
+        action="Chunks Selected by User",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={"chosen_chunks": unique_tokens, "count": len(unique_tokens)},
+    )
+
     # Vocabulary enrichment via LLM
     tokens_to_extract = [
         tok for tok in unique_tokens
@@ -419,10 +431,40 @@ async def prepare_lesson_endpoint(
     enriched_map: dict[str, dict[str, Any]] = {}
     if tokens_to_extract:
         extract_text = "\n".join(tokens_to_extract)
+        system_prompt = (
+            job_queue_service.llm.build_system_prompt(source_lang, target_lang)
+            if hasattr(job_queue_service.llm, "build_system_prompt")
+            else ""
+        )
+        enrich_prompt = f"{system_prompt}\n\nInput Text to process:\n{extract_text}".strip()
+        log_journey_event(
+            journey_id=journey_id,
+            journey_type="lesson_creation",
+            stage="llm_enrichment_request",
+            action="LLM Vocabulary Extraction Request",
+            user_id=current_user.id,
+            username=current_user.username,
+            data={"input_prompt": enrich_prompt, "tokens": tokens_to_extract},
+        )
         extracted_response = await job_queue_service.llm.extract_vocabulary(
             text=extract_text,
             source_lang=source_lang,
             target_lang=target_lang,
+        )
+        log_journey_event(
+            journey_id=journey_id,
+            journey_type="lesson_creation",
+            stage="llm_enrichment_response",
+            action="LLM Vocabulary Extraction Response",
+            user_id=current_user.id,
+            username=current_user.username,
+            data={
+                "output": (
+                    json.dumps(extracted_response.model_dump(), ensure_ascii=False)
+                    if hasattr(extracted_response, "model_dump")
+                    else str(extracted_response)
+                )
+            },
         )
         for item in extracted_response.items:
             t_text = item.target_text if hasattr(item, "target_text") else item.text
@@ -473,12 +515,44 @@ async def prepare_lesson_endpoint(
     ]
 
     raw_text_context = (lesson.raw_input if lesson else None) or request.text
+    quiz_system_prompt = (
+        job_queue_service.llm.build_quiz_system_prompt(source_lang, target_lang)
+        if hasattr(job_queue_service.llm, "build_quiz_system_prompt")
+        else ""
+    )
+    full_quiz_prompt = (
+        f"{quiz_system_prompt}\n\nVocabulary words: {', '.join(w.text for w in extracted_words)}"
+    ).strip()
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="lesson_creation",
+        stage="llm_quiz_request",
+        action="LLM Quiz Generation Request",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={"input_prompt": full_quiz_prompt, "words": [w.text for w in extracted_words]},
+    )
     quiz_response = await job_queue_service.llm.generate_quiz(
         words=words_data,
         source_lang=source_lang,
         target_lang=target_lang,
         text=raw_text_context,
         title=request.title or (lesson.title if lesson else None),
+    )
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="lesson_creation",
+        stage="llm_quiz_response",
+        action="LLM Quiz Generation Response",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={
+            "output": (
+                json.dumps(quiz_response.model_dump(), ensure_ascii=False)
+                if hasattr(quiz_response, "model_dump")
+                else str(quiz_response)
+            )
+        },
     )
 
     lesson_title = (
@@ -516,6 +590,21 @@ async def prepare_lesson_endpoint(
 
     db.refresh(lesson)
     words_read = [WordService.to_read(w, user_id=current_user.id, db=db) for w in extracted_words]
+
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="lesson_creation",
+        stage="lesson_ready",
+        action="Lesson Ready with Quiz",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={
+            "lesson_id": lesson.id,
+            "title": lesson.title,
+            "chosen_chunks": unique_tokens,
+            "quiz_questions_count": len(quiz_response.questions),
+        },
+    )
 
     return LessonRead(
         id=lesson.id,

@@ -58,3 +58,51 @@ def update_user(db: Session, user: User, user_in: UserUpdate) -> User:
     db.refresh(user)
     return user
 
+
+def ensure_admin_user(db: Session) -> User:
+    """Find or create the admin user configured via settings / .env."""
+    import logging
+    from app.auth.security import hash_password, verify_password
+    from app.config import settings
+
+    logger = logging.getLogger("app.crud.user")
+    admin_username = settings.ADMIN_USERNAME.strip()
+    admin = get_user_by_username(db, admin_username)
+
+    if not admin:
+        hashed = hash_password(settings.ADMIN_PASSWORD)
+        admin = User(
+            username=admin_username,
+            hashed_password=hashed,
+            is_active=True,
+            is_admin=True,
+        )
+        db.add(admin)
+        db.flush()
+
+        initial_profile = LearningProfile(
+            user_id=admin.id,
+            source_language="ru",
+            target_language="en",
+            is_active=True,
+        )
+        db.add(initial_profile)
+        db.commit()
+        db.refresh(admin)
+        logger.info(f"Admin user '{admin_username}' provisioned successfully (id={admin.id}).")
+    else:
+        updated = False
+        if not admin.is_admin:
+            admin.is_admin = True
+            updated = True
+        if not verify_password(settings.ADMIN_PASSWORD, admin.hashed_password):
+            admin.hashed_password = hash_password(settings.ADMIN_PASSWORD)
+            updated = True
+        if updated:
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+            logger.info(f"Admin user '{admin_username}' synchronized (is_admin=True, password updated).")
+
+    return admin
+

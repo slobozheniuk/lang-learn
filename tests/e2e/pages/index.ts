@@ -10,3 +10,4 @@ export * from './LessonDetailPage';
 export * from './FlashcardsPage';
 export * from './WordlistPage';
 export * from './SettingsPage';
+export * from './AdminPage';

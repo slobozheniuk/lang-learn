@@ -34,6 +34,7 @@ class UserUpdate(BaseModel):
 class UserRead(UserBase):
     id: int
     is_active: bool
+    is_admin: bool = False
     created_at: datetime
     updated_at: datetime
     profiles: list[LearningProfileRead] = []

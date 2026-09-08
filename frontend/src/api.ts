@@ -1,4 +1,4 @@
-import { AuthResponse, DueReviewItem, Language, RegisterResponse, User, Word, LearningProfile } from './types';
+import { AuthResponse, DueReviewItem, Language, RegisterResponse, User, Word, LearningProfile, AdminUserStats, JourneyLog } from './types';
 
 let currentToken: string | null = typeof localStorage !== 'undefined' ? localStorage.getItem('ll_token') : null;
 
@@ -277,5 +277,18 @@ export async function switchProfile(profileId: number): Promise<LearningProfile>
   return api<LearningProfile>(`/api/v1/profiles/${profileId}/switch`, {
     method: 'POST',
   });
+}
+
+export async function fetchAdminUsers(): Promise<AdminUserStats[]> {
+  return api<AdminUserStats[]>('/api/v1/admin/users');
+}
+
+export async function fetchAdminJourneys(journeyType?: string, limit: number = 50): Promise<JourneyLog[]> {
+  const params = new URLSearchParams();
+  if (journeyType && journeyType !== 'all') {
+    params.append('journey_type', journeyType);
+  }
+  params.append('limit', limit.toString());
+  return api<JourneyLog[]>(`/api/v1/admin/logs/journeys?${params.toString()}`);
 }
 

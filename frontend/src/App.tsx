@@ -30,6 +30,7 @@ import { WordlistView } from './components/WordlistView';
 import { BottomDock } from './components/BottomDock';
 import { AuthView } from './components/AuthView';
 import { SettingsView } from './components/SettingsView';
+import { AdminView } from './components/AdminView';
 
 export function App() {
   // Navigation & View State
@@ -780,6 +781,8 @@ export function App() {
                 onDeleteWord={handleDeleteWord}
                 onRefresh={loadWordlist}
               />
+            ) : activePage === 'admin' ? (
+              <AdminView onBack={() => handleNavigate('lessons')} />
             ) : (
               <SettingsView
                 user={user}
@@ -789,8 +792,8 @@ export function App() {
             )}
           </main>
 
-          {/* Pinned Bottom Word Input Dock - Hidden on active lesson view and settings page */}
-          {!activeLesson && activePage !== 'settings' && (
+          {/* Pinned Bottom Word Input Dock - Hidden on active lesson view, settings and admin page */}
+          {!activeLesson && activePage !== 'settings' && activePage !== 'admin' && (
             <BottomDock
               quickInput={quickInput}
               onInputChange={setQuickInput}
@@ -802,6 +805,7 @@ export function App() {
           <BurgerMenu
             isOpen={isMenuOpen}
             activePage={activePage}
+            isAdmin={user?.is_admin}
             onClose={() => setIsMenuOpen(false)}
             onNavigate={handleNavigate}
           />

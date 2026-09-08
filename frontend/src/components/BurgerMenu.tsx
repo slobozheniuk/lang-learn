@@ -4,6 +4,7 @@ import { PageView } from '../types';
 interface BurgerMenuProps {
   isOpen: boolean;
   activePage: PageView;
+  isAdmin?: boolean;
   onClose: () => void;
   onNavigate: (page: PageView) => void;
 }
@@ -11,6 +12,7 @@ interface BurgerMenuProps {
 export const BurgerMenu: React.FC<BurgerMenuProps> = ({
   isOpen,
   activePage,
+  isAdmin,
   onClose,
   onNavigate,
 }) => {
@@ -110,6 +112,21 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
             <span className="drawer-nav-label">Settings</span>
             {activePage === 'settings' && <span className="active-dot" />}
           </button>
+
+          {isAdmin && (
+            <button
+              id="nav-link-admin"
+              className={`drawer-nav-item ${activePage === 'admin' ? 'active' : ''}`}
+              onClick={() => {
+                onNavigate('admin');
+                onClose();
+              }}
+            >
+              <span className="drawer-nav-icon">🛡️</span>
+              <span className="drawer-nav-label">Admin</span>
+              {activePage === 'admin' && <span className="active-dot" />}
+            </button>
+          )}
         </nav>
       </div>
     </>

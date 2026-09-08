@@ -16,6 +16,10 @@ export class HeaderComponent extends BaseComponent {
     await this.btnBurger.click();
   }
 
+  async openMenu(): Promise<void> {
+    await this.openBurgerMenu();
+  }
+
   async clickBrand(): Promise<void> {
     await this.brandLink.click();
   }

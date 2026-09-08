@@ -26,9 +26,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Initialize DB tables
     Base.metadata.create_all(bind=engine)
     ensure_db_schema_updated()
-    # Seed default languages (ru, en, nl)
+    # Seed default languages (ru, en, nl) and ensure admin user
     with SessionLocal() as db:
         seed_default_languages(db)
+        from app.crud.user import ensure_admin_user
+        ensure_admin_user(db)
     # Background log cleanup routine (retention: 7 days)
     purge_old_log_files(max_days=settings.LOG_BACKUP_DAYS)
     # Start background job worker and scheduler

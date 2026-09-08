@@ -141,6 +141,20 @@ class JobQueueService:
             )
 
             # 1. Invoke LLM with strict prompt & Pydantic validation
+            from app.services.journey_logger import log_journey_event
+            journey_id = f"job_{job_id}"
+            log_journey_event(
+                journey_id=journey_id,
+                journey_type="word_adding",
+                stage="llm_request",
+                action="LLM Vocabulary Extraction Request",
+                user_id=job.user_id,
+                data={
+                    "input_prompt": f"Extract vocabulary from text:\n{job.input_text}",
+                    "source_lang": job.source_lang,
+                    "target_lang": job.target_lang,
+                },
+            )
             try:
                 llm_response: LLMTranslationResponse = await self.llm.extract_vocabulary(
                     text=job.input_text,
@@ -167,6 +181,22 @@ class JobQueueService:
                     )
                     update_job(db, job_id, status="failed", error_message=str(e))
                     return job, None, []
+
+            log_journey_event(
+                journey_id=journey_id,
+                journey_type="word_adding",
+                stage="llm_response",
+                action="LLM Vocabulary Extraction Response",
+                user_id=job.user_id,
+                data={
+                    "output": (
+                        json.dumps(llm_response.model_dump(), ensure_ascii=False)
+                        if hasattr(llm_response, "model_dump")
+                        else str(llm_response)
+                    ),
+                    "items_extracted": len(llm_response.items),
+                },
+            )
 
             items = llm_response.items
             if not items:

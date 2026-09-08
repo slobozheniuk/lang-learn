@@ -38,6 +38,9 @@ def ensure_db_schema_updated() -> None:
                         conn.execute(text(f"ALTER TABLE users DROP COLUMN {old_col}"))
                     except Exception as e:
                         logger.warning(f"Could not drop {old_col} column: {e}")
+            if "is_admin" not in cols:
+                logger.info("Applying schema migration: adding 'is_admin' column to users table")
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0 NOT NULL"))
             conn.commit()
 
         result_lessons = conn.execute(text("PRAGMA table_info(lessons)"))
