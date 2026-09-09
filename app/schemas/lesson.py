@@ -46,6 +46,7 @@ class LessonBase(BaseModel):
 class LessonCreate(LessonBase):
     quiz_data: str | dict | list | None = None
     chunk_data: str | dict | list | None = None
+    ilya_frank_data: str | dict | list | None = None
     is_completed: bool = False
 
 
@@ -119,6 +120,7 @@ class LessonRead(LessonBase):
     is_completed: bool = False
     quiz_data: Any | None = None
     chunk_data: Any | None = None
+    ilya_frank_data: Any | None = None
     created_at: datetime
     updated_at: datetime
     words: list[WordRead] = Field(default_factory=list)
@@ -136,6 +138,16 @@ class LessonRead(LessonBase):
     @field_validator("chunk_data", mode="before")
     @classmethod
     def parse_chunk_json(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return v
+        return v
+
+    @field_validator("ilya_frank_data", mode="before")
+    @classmethod
+    def parse_ilya_frank_json(cls, v: Any) -> Any:
         if isinstance(v, str):
             try:
                 return json.loads(v)

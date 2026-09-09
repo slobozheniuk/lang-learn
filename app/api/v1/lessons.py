@@ -17,6 +17,7 @@ from app.crud.word import get_or_create_word, get_word_by_id
 from app.database import get_db
 from app.models.user import User
 from app.models.word import Word
+from app.schemas.ilya_frank import IlyaFrankGenerateRequest, IlyaFrankResponse
 from app.schemas.job import TextSubmissionRequest, TextSubmissionResponse
 from app.schemas.lesson import (
     ChunkItemSchema,
@@ -86,6 +87,7 @@ def list_lessons(
                 is_completed=lesson.is_completed,
                 quiz_data=lesson.quiz_data,
                 chunk_data=lesson.chunk_data,
+                ilya_frank_data=lesson.ilya_frank_data,
                 created_at=lesson.created_at,
                 updated_at=lesson.updated_at,
                 words=words,
@@ -127,6 +129,7 @@ def get_lesson(
         is_completed=lesson.is_completed,
         quiz_data=lesson.quiz_data,
         chunk_data=lesson.chunk_data,
+        ilya_frank_data=lesson.ilya_frank_data,
         created_at=lesson.created_at,
         updated_at=lesson.updated_at,
         words=words,
@@ -257,6 +260,7 @@ async def generate_quiz_lesson(
         is_completed=lesson.is_completed,
         quiz_data=lesson.quiz_data,
         chunk_data=lesson.chunk_data,
+        ilya_frank_data=lesson.ilya_frank_data,
         created_at=lesson.created_at,
         updated_at=lesson.updated_at,
         words=words_read,
@@ -514,7 +518,7 @@ async def prepare_lesson_endpoint(
         for w in extracted_words
     ]
 
-    raw_text_context = (lesson.raw_input if lesson else None) or request.text
+    raw_text_context = (lesson.raw_input if lesson else None) or request.text or ", ".join(unique_tokens)
     quiz_system_prompt = (
         job_queue_service.llm.build_quiz_system_prompt(source_lang, target_lang)
         if hasattr(job_queue_service.llm, "build_quiz_system_prompt")
@@ -555,6 +559,27 @@ async def prepare_lesson_endpoint(
         },
     )
 
+    # Generate Ilya Frank dual-pass adaptation
+    frank_response = await job_queue_service.llm.generate_ilya_frank(
+        text=raw_text_context,
+        selected_words=unique_tokens,
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )
+    frank_json = json.dumps(frank_response.model_dump(), ensure_ascii=False)
+    log_journey_event(
+        journey_id=journey_id,
+        journey_type="lesson_creation",
+        stage="ilya_frank_generated",
+        action="Ilya Frank Text Adaptation Generated",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={
+            "excerpts_count": len(frank_response.excerpts),
+            "chosen_chunks": unique_tokens,
+        },
+    )
+
     lesson_title = (
         request.title
         or (lesson.title if lesson and lesson.title not in ("Reading Lesson", "Text Review") else None)
@@ -573,6 +598,7 @@ async def prepare_lesson_endpoint(
             raw_input=raw_input,
             input_type="quiz",
             quiz_data=quiz_response.model_dump(),
+            ilya_frank_data=frank_response.model_dump(),
             is_completed=False,
         )
         lesson = create_lesson(db, user_id=current_user.id, lesson_in=lesson_in, status="ready")
@@ -581,6 +607,7 @@ async def prepare_lesson_endpoint(
         lesson.input_type = "quiz"
         lesson.status = "ready"
         lesson.quiz_data = json.dumps(quiz_response.model_dump())
+        lesson.ilya_frank_data = frank_json
         db.commit()
         db.refresh(lesson)
 
@@ -618,6 +645,7 @@ async def prepare_lesson_endpoint(
         is_completed=lesson.is_completed,
         quiz_data=lesson.quiz_data,
         chunk_data=lesson.chunk_data,
+        ilya_frank_data=lesson.ilya_frank_data,
         created_at=lesson.created_at,
         updated_at=lesson.updated_at,
         words=words_read,
@@ -664,6 +692,7 @@ def complete_lesson(
         is_completed=lesson.is_completed,
         quiz_data=lesson.quiz_data,
         chunk_data=lesson.chunk_data,
+        ilya_frank_data=lesson.ilya_frank_data,
         created_at=lesson.created_at,
         updated_at=lesson.updated_at,
         words=words,
@@ -751,6 +780,7 @@ async def create_lesson_endpoint(
             is_completed=created_lesson.is_completed,
             quiz_data=created_lesson.quiz_data,
             chunk_data=created_lesson.chunk_data,
+            ilya_frank_data=created_lesson.ilya_frank_data,
             created_at=created_lesson.created_at,
             updated_at=created_lesson.updated_at,
             words=[],
@@ -812,5 +842,93 @@ def delete_lesson_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Lesson with id {lesson_id} not found.",
         )
+
+
+@router.post(
+    "/{lesson_id}/ilya-frank",
+    response_model=IlyaFrankResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Generate or re-generate Ilya Frank dual-pass adaptation for an existing lesson",
+)
+async def generate_lesson_ilya_frank_endpoint(
+    lesson_id: int,
+    request: IlyaFrankGenerateRequest = IlyaFrankGenerateRequest(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> IlyaFrankResponse:
+    lesson = get_lesson_by_id(db, lesson_id)
+    if not lesson or lesson.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Lesson with id {lesson_id} not found.",
+        )
+
+    text_to_adapt = request.text or lesson.raw_input
+    selected_words = request.selected_words
+    if not selected_words and lesson.lesson_words:
+        selected_words = [lw.word.text for lw in lesson.lesson_words if lw.word]
+
+    source_lang = request.source_lang or lesson.source_lang
+    target_lang = request.target_lang or lesson.target_lang
+
+    frank_response = await job_queue_service.llm.generate_ilya_frank(
+        text=text_to_adapt,
+        selected_words=selected_words,
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )
+
+    lesson.ilya_frank_data = json.dumps(frank_response.model_dump(), ensure_ascii=False)
+    db.commit()
+    db.refresh(lesson)
+
+    log_journey_event(
+        journey_id=f"lesson_{lesson.id}",
+        journey_type="lesson_creation",
+        stage="ilya_frank_generated",
+        action="Ilya Frank Text Adaptation Generated",
+        user_id=current_user.id,
+        username=current_user.username,
+        data={
+            "lesson_id": lesson.id,
+            "excerpts_count": len(frank_response.excerpts),
+        },
+    )
+
+    return frank_response
+
+
+@router.post(
+    "/ilya-frank",
+    response_model=IlyaFrankResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Generate Ilya Frank dual-pass adaptation for arbitrary text",
+)
+async def generate_standalone_ilya_frank_endpoint(
+    request: IlyaFrankGenerateRequest,
+    current_user: User = Depends(get_current_user),
+) -> IlyaFrankResponse:
+    if not request.text or not request.text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Text cannot be empty.",
+        )
+
+    active_profile = current_user.get_active_profile()
+    source_lang = (
+        request.source_lang
+        or (active_profile.source_language if active_profile else "en")
+    )
+    target_lang = (
+        request.target_lang
+        or (active_profile.target_language if active_profile else "nl")
+    )
+
+    return await job_queue_service.llm.generate_ilya_frank(
+        text=request.text,
+        selected_words=request.selected_words,
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )
 
 

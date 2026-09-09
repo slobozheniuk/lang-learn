@@ -102,7 +102,11 @@ flowchart TD
   - `switchMode('reading' | 'quiz' | 'cards' | 'list')`: Switches study modes via header mode toggles.
   - **Reading Mode**:
     - `selectChunk(index)`: Toggles selection on clickable word/phrase chips (`.reading-chunk-chip`).
-    - `prepareLesson()` / `continueReview()`: Submits selected words via `#btn-prepare-lesson` (Continue button) to add them to wordlist and generate quizzes.
+    - `prepareLesson()` / `continueReview()`: Submits selected words via `#btn-prepare-lesson` (Continue button) to add them to wordlist, generate Ilya Frank dual-pass adaptation, and generate quizzes.
+    - **Ilya Frank Dual-Pass View**: Displays adapted excerpts ($A_i$) with parenthetical inline glosses before punctuation (`.if-gloss`) paired with authentic unadapted excerpts ($U_i$) (`#ilya-frank-reading-container`).
+    - `startQuizFromFrank()`: Clicks `#btn-frank-to-quiz` to transition to Quiz Mode.
+    - `#btn-frank-to-cards`: Transitions to Flashcards Mode.
+    - `#btn-reselect-chunks`: Clicks to toggle back to chunk chip selection.
   - **Quiz Mode**:
     - `selectQuizOption(index)`: Selects multiple-choice option (`#quiz-option-${n}`).
     - `nextQuizQuestion()`: Advances to the next question or finishes quiz (`#btn-next-quiz-question`).

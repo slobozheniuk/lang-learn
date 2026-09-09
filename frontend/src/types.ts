@@ -156,6 +156,17 @@ export interface ChunkResponse {
   lesson_id?: number | null;
 }
 
+export interface IlyaFrankExcerpt {
+  index: number;
+  adapted_text: string;
+  raw_text: string;
+  vocabulary_extracted?: Word[];
+}
+
+export interface IlyaFrankData {
+  excerpts: IlyaFrankExcerpt[];
+}
+
 export interface Lesson {
   id: number;
   number?: number;
@@ -168,6 +179,7 @@ export interface Lesson {
   input_type?: string;
   quiz_data?: QuizData | any;
   chunk_data?: ChunkResponse | ChunkItem[] | any;
+  ilya_frank_data?: IlyaFrankData | any;
   status?: string;
   raw_input?: string;
   source_lang?: string;

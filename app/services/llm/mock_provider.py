@@ -1,6 +1,7 @@
 import logging
 import re
 from typing import Any
+from app.schemas.ilya_frank import IlyaFrankResponse
 from app.services.llm.base import (
     LLMProvider,
     LLMQuizQuestion,
@@ -310,3 +311,19 @@ class MockLLMProvider(LLMProvider):
     def _lookup(self, word: str, lang: str):
         lang_dict = self.DICTIONARY.get(lang.lower(), {})
         return lang_dict.get(word.lower())
+
+    async def generate_ilya_frank(
+        self,
+        text: str,
+        selected_words: list[str],
+        source_lang: str,
+        target_lang: str,
+    ) -> "IlyaFrankResponse":
+        from app.services.ilya_frank import generate_mock_adaptation
+        return generate_mock_adaptation(
+            text=text,
+            selected_words=selected_words,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            dictionary_lookup=self._lookup,
+        )

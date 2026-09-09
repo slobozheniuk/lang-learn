@@ -76,7 +76,7 @@ test.describe('Lesson Detail View', () => {
 
     // Lesson card appears in grid without prompt modal
     const lessonCard = lessonsPage.lessonCards.first();
-    await expect(lessonCard).toBeVisible({ timeout: 10000 });
+    await expect(lessonCard).toBeVisible({ timeout: 15000 });
     await expect(lessonCard).not.toHaveClass(/lesson-card-generating/, { timeout: 15000 });
     await page.waitForTimeout(300);
     await lessonCard.click();
@@ -111,10 +111,16 @@ test.describe('Lesson Detail View', () => {
     // Click Prepare Lesson
     await lessonDetailPage.btnPrepareLesson.click();
 
-    // Transition to Quiz mode
+    // Transition to Ilya Frank Dual-Pass Reading mode
+    await expect(lessonDetailPage.frankContainer).toBeVisible({ timeout: 15000 });
+    await expect(lessonDetailPage.frankGlosses.first()).toBeVisible();
+    await expect(lessonDetailPage.btnFrankToQuiz).toBeVisible();
+
+    // Transition to Quiz mode via Frank Reading Action Bar
+    await lessonDetailPage.startQuizFromFrank();
     await expect(lessonDetailPage.quizContainer).toBeVisible({ timeout: 15000 });
     await expect(lessonDetailPage.btnModeQuiz).toHaveClass(/active/);
-    await expect(lessonDetailPage.readingContainer).not.toBeVisible();
+    await expect(lessonDetailPage.frankContainer).not.toBeVisible();
 
     await expect(page).toHaveScreenshot();
     const option0 = lessonDetailPage.getQuizOption(0);

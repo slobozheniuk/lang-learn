@@ -124,6 +124,7 @@ test.describe('Admin Dashboard & Journey Logs', () => {
 
     // 3. Switch to Journey Logs tab
     await adminPage.switchToLogsTab();
+    await adminPage.filterJourneys('lesson_creation');
     await adminPage.refreshLogs();
 
     // 4. Verify journeys list renders interactive buttons
@@ -131,8 +132,8 @@ test.describe('Admin Dashboard & Journey Logs', () => {
     const journeyCount = await adminPage.journeyButtons.count();
     expect(journeyCount).toBeGreaterThan(0);
 
-    // 5. Click the journey button to open the separate Journey Detail view
-    await adminPage.openJourney(0);
+    // 5. Click the seeded lesson journey button to open the separate Journey Detail view
+    await adminPage.openJourney(`lesson_${seedRes.lessonId}`);
 
     // 6. Verify Journey Detail View
     await expect(adminPage.journeyDetailView).toBeVisible();

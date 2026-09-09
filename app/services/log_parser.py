@@ -66,7 +66,7 @@ def parse_log_file(log_path: Path | None = None, limit: int = 50, journey_type_f
         logger.error(f"Failed to read log file {log_path}: {e}")
         return []
 
-    for line in lines:
+    for idx, line in enumerate(lines):
         if "[JOURNEY_EVENT]" not in line:
             continue
 
@@ -89,7 +89,6 @@ def parse_log_file(log_path: Path | None = None, limit: int = 50, journey_type_f
             continue
 
         if j_id not in journeys_map:
-            journey_order.append(j_id)
             journeys_map[j_id] = {
                 "journey_id": j_id,
                 "journey_type": event.get("journey_type") or "word_adding",
@@ -102,9 +101,11 @@ def parse_log_file(log_path: Path | None = None, limit: int = 50, journey_type_f
                 "actions": [],
                 "llm_interactions": [],
                 "_pending_llm": {},
+                "_last_seen": idx,
             }
 
         j = journeys_map[j_id]
+        j["_last_seen"] = idx
 
         # Update metadata if newly available
         if event.get("user_id") and not j["user_id"]:
@@ -167,8 +168,13 @@ def parse_log_file(log_path: Path | None = None, limit: int = 50, journey_type_f
 
     # Convert accumulator dicts to JourneyLog Pydantic models
     results: list[JourneyLog] = []
-    # Reverse to show newest journeys first
-    for j_id in reversed(journey_order):
+    # Sort to show newest journeys (most recently active in log) first
+    sorted_j_ids = sorted(
+        journeys_map.keys(),
+        key=lambda k: journeys_map[k].get("_last_seen", 0),
+        reverse=True,
+    )
+    for j_id in sorted_j_ids:
         raw = journeys_map[j_id]
         if journey_type_filter and raw["journey_type"] != journey_type_filter:
             continue

@@ -52,6 +52,9 @@ def ensure_db_schema_updated() -> None:
             if "chunk_data" not in lesson_cols:
                 logger.info("Applying schema migration: adding 'chunk_data' column to lessons table")
                 conn.execute(text("ALTER TABLE lessons ADD COLUMN chunk_data TEXT"))
+            if "ilya_frank_data" not in lesson_cols:
+                logger.info("Applying schema migration: adding 'ilya_frank_data' column to lessons table")
+                conn.execute(text("ALTER TABLE lessons ADD COLUMN ilya_frank_data TEXT"))
             if "is_completed" not in lesson_cols:
                 logger.info("Applying schema migration: adding 'is_completed' column to lessons table")
                 conn.execute(text("ALTER TABLE lessons ADD COLUMN is_completed BOOLEAN DEFAULT 0 NOT NULL"))

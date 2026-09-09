@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChunkItem, Lesson, QuizQuestion, Word } from '../types';
+import { ChunkItem, IlyaFrankData, Lesson, QuizQuestion, Word } from '../types';
 import { chunkText, completeLesson, prepareLesson } from '../api';
 import { pronounceWord, triggerHaptic } from '../utils/srs';
 
@@ -37,10 +37,26 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
     return [];
   }, [currentLesson.quiz_data]);
 
+  const ilyaFrankData = useMemo<IlyaFrankData | null>(() => {
+    if (!currentLesson.ilya_frank_data) return null;
+    let d = currentLesson.ilya_frank_data;
+    if (typeof d === 'string') {
+      try {
+        d = JSON.parse(d);
+      } catch {
+        return null;
+      }
+    }
+    return d && Array.isArray(d.excerpts) ? d : null;
+  }, [currentLesson.ilya_frank_data]);
+
+  const hasFrankData = Boolean(ilyaFrankData && ilyaFrankData.excerpts.length > 0);
+  const [isEditingSelection, setIsEditingSelection] = useState<boolean>(false);
+
   const hasQuiz = quizQuestions.length > 0;
   const isReadingLesson = currentLesson.status === 'reading' || currentLesson.input_type === 'reading';
   const hasRawText = Boolean(currentLesson.raw_input && currentLesson.raw_input.trim().length > 0);
-  const hasReading = Boolean(currentLesson.chunk_data || hasRawText || isReadingLesson);
+  const hasReading = Boolean(currentLesson.chunk_data || hasRawText || isReadingLesson || hasFrankData);
 
   // Study View Mode: default to reading if reading lesson, quiz if quiz exists, else flashcard
   const [viewMode, setViewMode] = useState<'reading' | 'quiz' | 'flashcard' | 'list'>(() => {
@@ -159,11 +175,8 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
       if (onLessonPrepared) {
         onLessonPrepared(updated);
       }
-      setViewMode('quiz');
-      setQuizIndex(0);
-      setSelectedAnswers({});
-      setQuizScore(0);
-      setIsQuizCompleted(false);
+      setIsEditingSelection(false);
+      setViewMode('reading');
     } catch (err: any) {
       triggerHaptic('error');
       setPrepareError(err?.message || 'Failed to prepare lesson from selected words');
@@ -172,6 +185,34 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
       setIsPreparing(false);
     }
   }, [selectedChunkIndices, isPreparing, chunks, currentLesson, onLessonPrepared]);
+
+  // Helper to render adapted text with .if-gloss spans
+  const renderAdaptedText = (adaptedText: string) => {
+    const parts = adaptedText.split(/(\([^)]+\))/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('(') && part.endsWith(')')) {
+        return (
+          <span key={idx} className="if-gloss">
+            {part}
+          </span>
+        );
+      }
+      if (part.includes('\n')) {
+        const lines = part.split('\n');
+        return (
+          <span key={idx}>
+            {lines.map((l, lIdx) => (
+              <React.Fragment key={lIdx}>
+                {lIdx > 0 && <br />}
+                {l}
+              </React.Fragment>
+            ))}
+          </span>
+        );
+      }
+      return <span key={idx}>{part}</span>;
+    });
+  };
 
   // Flashcard handlers
   const handleFlip = useCallback(() => {
@@ -368,7 +409,7 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
           <div className="lesson-detail-titles">
             <h2 className="lesson-detail-title">{currentLesson.title}</h2>
             <span className="lesson-detail-meta">
-              {viewMode === 'reading' && '📖 Reading & Selection Mode'}
+              {viewMode === 'reading' && (hasFrankData && !isEditingSelection ? '📖 Ilya Frank Dual-Pass Reading' : '📖 Reading & Selection Mode')}
               {viewMode === 'quiz' && `${quizQuestions.length} quiz questions • `}
               {viewMode !== 'reading' && `${words.length} ${words.length === 1 ? 'word' : 'words'}`}
             </span>
@@ -413,10 +454,114 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
       </div>
 
       {/* ======================================================================
+          ILYA FRANK DUAL-PASS READING MODE
+         ====================================================================== */}
+      {viewMode === 'reading' && hasFrankData && !isEditingSelection && (
+        <div id="ilya-frank-reading-container" className="ilya-frank-reading-container">
+          <div className="reading-card-header frank-header">
+            <div className="reading-header-icon">📖</div>
+            <div className="reading-header-text">
+              <div className="frank-header-badge">Ilya Frank Method</div>
+              <h3 className="reading-header-title">Dual-Pass Reading Practice</h3>
+              <p className="reading-header-subtitle">
+                Read the adapted text with inline glosses before punctuation (Pass 1), then read the authentic unassisted text (Pass 2).
+              </p>
+            </div>
+          </div>
+
+          <div className="frank-excerpts-list">
+            {ilyaFrankData!.excerpts.map((excerpt) => (
+              <div key={excerpt.index} id={`frank-excerpt-${excerpt.index}`} className="frank-excerpt-card">
+                <div className="frank-excerpt-header">
+                  <span className="frank-excerpt-tag">
+                    Excerpt {excerpt.index} of {ilyaFrankData!.excerpts.length}
+                  </span>
+                </div>
+
+                {/* Pass 1: Adapted Segment (Ai) */}
+                <div className="frank-pass-section frank-adapted-section">
+                  <div className="frank-pass-label">Pass 1: Adapted Text (Ai)</div>
+                  <div className="frank-adapted-text" id={`frank-adapted-${excerpt.index}`}>
+                    {renderAdaptedText(excerpt.adapted_text)}
+                  </div>
+                </div>
+
+                {/* Pass 2: Raw Authentic Segment (Ui) */}
+                <div className="frank-pass-section frank-raw-section">
+                  <div className="frank-pass-label">Pass 2: Authentic Text (Ui)</div>
+                  <div className="frank-raw-text" id={`frank-raw-${excerpt.index}`}>
+                    {excerpt.raw_text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Action Bar */}
+          <div id="frank-action-bar" className="frank-action-bar">
+            {hasQuiz && (
+              <button
+                id="btn-frank-to-quiz"
+                className="btn btn-primary btn-full"
+                onClick={() => {
+                  triggerHaptic('impact');
+                  setViewMode('quiz');
+                  setQuizIndex(0);
+                  setSelectedAnswers({});
+                  setQuizScore(0);
+                  setIsQuizCompleted(false);
+                }}
+              >
+                Practice Quiz ({quizQuestions.length} questions) →
+              </button>
+            )}
+            <div className="frank-secondary-actions">
+              <button
+                id="btn-frank-to-cards"
+                className="btn btn-secondary"
+                onClick={() => {
+                  triggerHaptic('impact');
+                  setViewMode('flashcard');
+                  setCurrentIndex(0);
+                  setIsFlipped(false);
+                  setIsCompleted(false);
+                }}
+              >
+                🎴 Flashcards
+              </button>
+              <button
+                id="btn-reselect-chunks"
+                className="btn btn-ghost"
+                onClick={() => {
+                  triggerHaptic('impact');
+                  setIsEditingSelection(true);
+                }}
+              >
+                ✏️ Edit Word Selection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================================
           INTERACTIVE READING & CHUNK SELECTION MODE
          ====================================================================== */}
-      {viewMode === 'reading' && (
+      {viewMode === 'reading' && (!hasFrankData || isEditingSelection) && (
         <div id="reading-study-container" className="reading-study-container">
+          {hasFrankData && (
+            <button
+              id="btn-cancel-edit-selection"
+              className="btn btn-ghost btn-sm"
+              style={{ alignSelf: 'flex-start', marginBottom: '0.5rem' }}
+              onClick={() => {
+                triggerHaptic('impact');
+                setIsEditingSelection(false);
+              }}
+            >
+              ← Back to Adapted Reading
+            </button>
+          )}
           <div className="reading-card-header">
             <div className="reading-header-icon">📖</div>
             <div className="reading-header-text">

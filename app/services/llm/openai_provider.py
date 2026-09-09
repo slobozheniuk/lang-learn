@@ -6,6 +6,12 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
+from app.schemas.ilya_frank import IlyaFrankResponse
+from app.services.ilya_frank import (
+    build_ilya_frank_system_prompt,
+    generate_mock_adaptation,
+    parse_and_validate_adaptation,
+)
 from app.services.llm.base import (
     LLMProvider,
     LLMQuizQuestion,
@@ -406,4 +412,94 @@ class OpenAILikeProvider(LLMProvider):
             if isinstance(parsed_json, list):
                 return LLMQuizResponse.model_validate({"title": "Generated Quiz", "questions": parsed_json})
             raise
+
+    async def generate_ilya_frank(
+        self,
+        text: str,
+        selected_words: list[str],
+        source_lang: str,
+        target_lang: str,
+    ) -> IlyaFrankResponse:
+        system_prompt = build_ilya_frank_system_prompt(source_lang=source_lang, target_lang=target_lang)
+        words_hint = f"Focus inline parenthetical glosses particularly on these unknown words/phrases: {', '.join(selected_words)}" if selected_words else "Gloss unknown or idiomatic words and phrases."
+        user_content = (
+            f"{words_hint}\n\n"
+            f"Authentic Target-Language Input Text:\n{text.strip()}"
+        )
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"},
+        }
+
+        start_time = time.perf_counter()
+        logger.info(
+            f"External LLM API Request [generate_ilya_frank]: model='{self.model}', base_url='{self.base_url}', "
+            f"pair='{source_lang}->{target_lang}', text_len={len(text)}, selected_count={len(selected_words)}"
+        )
+
+        raw_content = ""
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            try:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                raw_content = data["choices"][0]["message"]["content"]
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(
+                    f"External LLM API Response [generate_ilya_frank]: model='{self.model}', status={resp.status_code}, duration={duration_ms:.2f}ms"
+                )
+            except httpx.HTTPStatusError as e:
+                if payload.get("response_format"):
+                    logger.warning(f"LLM json response_format unsupported; retrying standard request: {e}")
+                    payload.pop("response_format", None)
+                    resp = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    raw_content = data["choices"][0]["message"]["content"]
+                else:
+                    logger.error(f"External LLM API HTTP Error [generate_ilya_frank]: {e}", exc_info=True)
+                    # Graceful fallback to mock deterministic adaptation
+                    return generate_mock_adaptation(
+                        text=text,
+                        selected_words=selected_words,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                    )
+            except Exception as e:
+                logger.error(f"External LLM API Communication Error [generate_ilya_frank]: {e}", exc_info=True)
+                return generate_mock_adaptation(
+                    text=text,
+                    selected_words=selected_words,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                )
+
+        try:
+            return parse_and_validate_adaptation(raw_content, text)
+        except Exception as e:
+            logger.warning(f"Failed to parse LLM Ilya Frank JSON response ({e}); falling back to deterministic adaptation: {raw_content[:200]}")
+            return generate_mock_adaptation(
+                text=text,
+                selected_words=selected_words,
+                source_lang=source_lang,
+                target_lang=target_lang,
+            )
 

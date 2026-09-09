@@ -2279,6 +2279,142 @@ button {
   box-shadow: none;
 }
 
+/* ==========================================================================
+   Ilya Frank Dual-Pass Reading & Gloss Styles (TKT-008A)
+   ========================================================================== */
+.if-gloss {
+  color: var(--color-primary-light, #93c5fd);
+  font-style: italic;
+  font-weight: 500;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(147, 197, 253, 0.25);
+  padding: 0.1rem 0.38rem;
+  border-radius: var(--radius-sm, 6px);
+  margin: 0 0.15rem;
+  display: inline-block;
+  line-height: 1.35;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.if-gloss:hover {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(147, 197, 253, 0.45);
+}
+
+.ilya-frank-reading-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.frank-header-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.55rem;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--color-primary-light, #93c5fd);
+  border-radius: var(--radius-full);
+  margin-bottom: 0.3rem;
+  width: fit-content;
+}
+
+.frank-excerpts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.frank-excerpt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.35rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: border-color var(--transition-normal);
+}
+
+.frank-excerpt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.frank-excerpt-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-sub);
+  background: var(--bg-sub, rgba(255, 255, 255, 0.05));
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-full);
+}
+
+.frank-pass-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.frank-pass-label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-sub);
+}
+
+.frank-adapted-section {
+  border-bottom: 1px dashed var(--border-color);
+  padding-bottom: 1rem;
+}
+
+.frank-adapted-text {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.frank-raw-section {
+  padding-top: 0.25rem;
+}
+
+.frank-raw-text {
+  font-size: 1.02rem;
+  line-height: 1.75;
+  color: var(--text-main);
+  opacity: 0.92;
+  word-break: break-word;
+}
+
+.frank-action-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.frank-secondary-actions {
+  display: flex;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.frank-secondary-actions .btn {
+  flex: 1;
+}
+
 .btn-restart-deck {
   display: inline-flex;
   align-items: center;

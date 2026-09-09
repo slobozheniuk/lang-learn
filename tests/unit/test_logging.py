@@ -20,24 +20,28 @@ from app.auth.security import create_access_token
 
 def test_setup_logging_initialization():
     """Verify setup_logging creates the logs directory and configures handlers."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        log_dir = Path(tmpdir) / "test_logs"
-        res_dir = setup_logging(log_dir=log_dir, log_level="DEBUG", backup_days=7)
-        assert res_dir.exists()
-        assert (res_dir / settings.LOG_FILE_NAME).exists()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_dir = Path(tmpdir) / "test_logs"
+            res_dir = setup_logging(log_dir=log_dir, log_level="DEBUG", backup_days=7)
+            assert res_dir.exists()
+            assert (res_dir / settings.LOG_FILE_NAME).exists()
 
-        root = logging.getLogger()
-        handler_types = [type(h).__name__ for h in root.handlers]
-        assert "StreamHandler" in handler_types
-        assert "TimedRotatingFileHandler" in handler_types
+            root = logging.getLogger()
+            handler_types = [type(h).__name__ for h in root.handlers]
+            assert "StreamHandler" in handler_types
+            assert "TimedRotatingFileHandler" in handler_types
 
-        # Verify writing log message
-        test_msg = "Test verification log message 12345"
-        logging.getLogger("app.test").info(test_msg)
+            # Verify writing log message
+            test_msg = "Test verification log message 12345"
+            logging.getLogger("app.test").info(test_msg)
 
-        content = (res_dir / settings.LOG_FILE_NAME).read_text(encoding="utf-8")
-        assert test_msg in content
-        assert "app.test" in content
+            content = (res_dir / settings.LOG_FILE_NAME).read_text(encoding="utf-8")
+            assert test_msg in content
+            assert "app.test" in content
+    finally:
+        # Restore standard application logger handlers
+        setup_logging()
 
 
 def test_purge_old_log_files():

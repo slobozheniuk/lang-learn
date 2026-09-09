@@ -1,4 +1,5 @@
 import json
+import uuid
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -89,7 +90,7 @@ def test_log_journey_parser_endpoint(client: TestClient, db_session: Session):
     admin_token = get_admin_token(client, db_session)
 
     # Directly emit a full journey event simulating lesson creation
-    journey_id = "test_journey_lesson_999"
+    journey_id = f"test_journey_lesson_{uuid.uuid4().hex[:8]}"
     log_journey_event(
         journey_id=journey_id,
         journey_type="lesson_creation",

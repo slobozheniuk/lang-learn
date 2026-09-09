@@ -67,10 +67,12 @@ lang-learn/
 │   │   └── job.py              # Async job tracking model
 │   ├── schemas/                # Pydantic schemas for request/response validation
 │   │   ├── auth.py, user.py, profile.py, language.py, lesson.py, word.py, review.py, job.py
+│   │   ├── ilya_frank.py       # Excerpt models and response schema
 │   │   └── word_association.py
 │   ├── services/               # Core business logic services
 │   │   ├── job_queue.py        # In-process asynchronous job queue
 │   │   ├── scheduler.py        # Background periodic job scheduler
+│   │   ├── ilya_frank.py       # Ilya Frank 27-rule adaptation engine & validators
 │   │   ├── word_service.py     # Vocabulary extraction & translation logic
 │   │   ├── review_service.py   # SRS session builder & review processing
 │   │   ├── journey_logger.py   # Structured journey logger writing events to app.log
@@ -143,9 +145,10 @@ lang-learn/
    - `ProfileSwitcher.tsx` -> `/api/v1/profiles` (controls active target and source languages via active profile).
 
 2. **Lesson Generation & Practice**:
-   - `LessonsView.tsx` triggers lesson generation -> `/api/v1/lessons/generate`.
-   - `JobQueueService` coordinates with `LLMProvider` (`OpenAIProvider` or `MockProvider`) to generate story, dialogue, and exercises.
-   - `LessonDetailView.tsx` renders interactive reading, comprehension questions, and vocabulary items with instant answer validation.
+   - `LessonsView.tsx` triggers lesson generation -> `/api/v1/lessons/submit-text` or chunk-text.
+   - Users select unknown tokens/chunks -> `/api/v1/lessons/{id}/prepare`.
+   - Backend runs `ilya_frank.py` generating dual-pass reading excerpts ($A_i$ adapted with parenthetical glosses + $U_i$ authentic unadapted text).
+   - `LessonDetailView.tsx` renders `#ilya-frank-reading-container` allowing the user to study adapted text before transitioning to Quiz mode (`#btn-frank-to-quiz`) or Flashcards (`#btn-frank-to-cards`).
 
 3. **Spaced Repetition & Vocabulary Review**:
    - `FlashcardsView.tsx` loads due cards from `/api/v1/review/session`.

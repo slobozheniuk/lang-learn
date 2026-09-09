@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.ilya_frank import IlyaFrankResponse
+
 
 class LLMWordItem(BaseModel):
     source_text: str = Field(..., description="The word or collocation in the source language")
@@ -136,4 +138,15 @@ class LLMProvider(ABC):
     @abstractmethod
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         """Raw completion method."""
+        pass
+
+    @abstractmethod
+    async def generate_ilya_frank(
+        self,
+        text: str,
+        selected_words: list[str],
+        source_lang: str,
+        target_lang: str,
+    ) -> "IlyaFrankResponse":
+        """Generate Ilya Frank dual-pass text adaptation enforcing 27 canonical rules."""
         pass

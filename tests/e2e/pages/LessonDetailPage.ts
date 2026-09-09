@@ -21,6 +21,15 @@ export class LessonDetailPage extends BasePage {
   readonly selectedChunksCount: Locator = this.root.locator('#selected-chunks-count');
   readonly btnPrepareLesson: Locator = this.root.locator('#btn-prepare-lesson');
   readonly btnContinue: Locator = this.btnPrepareLesson;
+  readonly btnCancelEditSelection: Locator = this.root.locator('#btn-cancel-edit-selection');
+
+  // Ilya Frank Dual-Pass Reading Mode
+  readonly frankContainer: Locator = this.root.locator('#ilya-frank-reading-container');
+  readonly frankExcerpts: Locator = this.root.locator('.frank-excerpt-card');
+  readonly frankGlosses: Locator = this.root.locator('.if-gloss');
+  readonly btnFrankToQuiz: Locator = this.root.locator('#btn-frank-to-quiz');
+  readonly btnFrankToCards: Locator = this.root.locator('#btn-frank-to-cards');
+  readonly btnReselectChunks: Locator = this.root.locator('#btn-reselect-chunks');
 
   // Quiz Mode
   readonly quizContainer: Locator = this.root.locator('#quiz-study-container');
@@ -59,7 +68,7 @@ export class LessonDetailPage extends BasePage {
     switch (mode) {
       case 'reading':
         await this.btnModeReading.click();
-        await expect(this.readingContainer).toBeVisible();
+        await expect(this.readingContainer.or(this.frankContainer)).toBeVisible();
         break;
       case 'quiz':
         await this.btnModeQuiz.click();
@@ -74,6 +83,11 @@ export class LessonDetailPage extends BasePage {
         await expect(this.root.locator('.lesson-list-mode')).toBeVisible();
         break;
     }
+  }
+
+  async startQuizFromFrank(): Promise<void> {
+    await this.btnFrankToQuiz.click();
+    await expect(this.quizContainer).toBeVisible();
   }
 
   // Reading Mode Operations
