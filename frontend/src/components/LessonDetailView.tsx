@@ -446,9 +446,19 @@ export const LessonDetailView: React.FC<LessonDetailViewProps> = ({
                   const isSelected = selectedChunkIndices.has(idx);
 
                   if (!isSelectable) {
+                    const chunkText = chunk.text;
+                    // Double newline → paragraph spacer
+                    if (/\n\s*\n/.test(chunkText)) {
+                      return <div key={idx} id={`chunk-${idx}`} className="reading-paragraph-break" />;
+                    }
+                    // Single newline → line break
+                    if (/\n/.test(chunkText)) {
+                      return <br key={idx} id={`chunk-${idx}`} />;
+                    }
+                    // Ordinary whitespace span
                     return (
                       <span key={idx} id={`chunk-${idx}`} className="reading-chunk-plain">
-                        {chunk.text}
+                        {chunkText}
                       </span>
                     );
                   }

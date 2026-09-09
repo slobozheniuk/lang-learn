@@ -1480,11 +1480,11 @@ button {
 .input-wrapper {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   width: 100%;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   padding: 0.5rem 0.6rem 0.5rem 1.1rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -1529,10 +1529,16 @@ button {
   background: transparent !important;
   color: var(--text-main);
   font-size: 1rem;
+  font-family: inherit;
   padding: 0.4rem 0.5rem 0.4rem 0;
   min-width: 0;
   -webkit-appearance: none;
   appearance: none;
+  /* Textarea-specific */
+  resize: none;
+  overflow: hidden;
+  line-height: 1.5;
+  max-height: 7rem; /* ~4 lines before scroll kicks in */
 }
 
 .quick-word-input::placeholder {
@@ -2172,50 +2178,67 @@ button {
 
 .reading-chunk-chip {
   display: inline;
-  padding: 0.15rem 0.35rem;
-  margin: 0 0.08rem;
+  padding: 0.12rem 0;
+  margin: 0;
   border-radius: var(--radius-sm);
-  border: 1.5px solid transparent;
+  border: none;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
   background: transparent;
   color: var(--text-main);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background 0.18s ease,
+              box-shadow 0.18s ease,
+              outline-color 0.15s ease,
+              color 0.15s ease;
   font-weight: 500;
 }
 
 .reading-chunk-chip:hover {
-  background: var(--bg-secondary);
-  border-color: var(--border-color);
+  background: rgba(99, 102, 241, 0.12);
+  box-shadow: 0 0 10px 2px rgba(99, 102, 241, 0.22);
+}
+
+[data-theme="dark"] .reading-chunk-chip:hover {
+  background: rgba(147, 197, 253, 0.14);
+  box-shadow: 0 0 12px 2px rgba(96, 165, 250, 0.28);
 }
 
 .reading-chunk-chip:active {
-  transform: scale(0.96);
+  background: rgba(99, 102, 241, 0.18);
 }
 
 .reading-chunk-chip.chunk-highlighted,
 .reading-chunk-chip.is-selected,
 .reading-chunk-chip.selected {
-  background-color: rgba(37, 99, 235, 0.16);
-  border-color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.16);
+  outline-color: var(--color-primary);
   color: var(--color-primary);
-  font-weight: 700;
-  box-shadow: 0 1px 6px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 0 14px 3px rgba(37, 99, 235, 0.45);
 }
 
 [data-theme="dark"] .reading-chunk-chip.chunk-highlighted,
 [data-theme="dark"] .reading-chunk-chip.is-selected,
 [data-theme="dark"] .reading-chunk-chip.selected {
-  background-color: rgba(59, 130, 246, 0.25);
-  border-color: #60a5fa;
+  background: rgba(59, 130, 246, 0.24);
+  outline-color: #60a5fa;
   color: #93c5fd;
-  box-shadow: 0 1px 6px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 16px 4px rgba(96, 165, 250, 0.55);
 }
 
 .reading-chunk-plain {
   display: inline;
   color: var(--text-main);
+}
+
+/* Paragraph break spacer — rendered when a double-newline gap chunk is detected */
+.reading-paragraph-break {
+  display: block;
+  height: 0.9em;
 }
 
 .reading-action-bar {

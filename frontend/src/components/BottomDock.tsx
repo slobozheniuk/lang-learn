@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
 export interface FloatingGhost {
   id: number;
@@ -16,8 +16,16 @@ export const BottomDock: React.FC<BottomDockProps> = ({
   onInputChange,
   onSubmit,
 }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [ghosts, setGhosts] = useState<FloatingGhost[]>([]);
+
+  // Auto-grow textarea height to fit content
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [quickInput]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +44,14 @@ export const BottomDock: React.FC<BottomDockProps> = ({
 
     // Submit word/text to parent handler
     onSubmit(raw);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter without Shift submits; Shift+Enter inserts a newline
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
   };
 
   const handleGhostAnimationEnd = (id: number) => {
@@ -61,16 +77,17 @@ export const BottomDock: React.FC<BottomDockProps> = ({
                 {ghost.text}
               </span>
             ))}
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
               id="quick-word-input"
               className="quick-word-input"
-              placeholder="Type a word or phrase..."
+              placeholder="Type a word, phrase, or paste text..."
               autoComplete="off"
               aria-label="Type a word or phrase to add"
               value={quickInput}
+              rows={1}
               onChange={(e) => onInputChange(e.target.value)}
+              onKeyDown={handleKeyDown}
             />
             <button
               type="submit"
