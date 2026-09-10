@@ -136,9 +136,22 @@ class LLMProvider(ABC):
         )
 
     @abstractmethod
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
-        """Raw completion method."""
+    async def send_message(
+        self,
+        system_prompt: str | None = None,
+        user_content: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+        *,
+        prompt: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        """Send a message to the LLM with user content and optional system prompt, returning raw string response."""
         pass
+
+    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Raw completion method delegating to send_message."""
+        return await self.send_message(system_prompt=system_prompt, user_content=prompt)
 
     @abstractmethod
     async def generate_ilya_frank(

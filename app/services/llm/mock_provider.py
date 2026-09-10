@@ -83,35 +83,53 @@ class MockLLMProvider(LLMProvider):
         "figure out", "catch up", "check in", "check out",
     ]
 
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
-        """Minimal completion for mock use.
+    async def send_message(
+        self,
+        system_prompt: str | None = None,
+        user_content: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+        *,
+        prompt: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        """Deterministic mock response for send_message.
 
-        For phrasal-verb detection prompts, scan the embedded text for any
-        entries from KNOWN_PHRASAL_VERBS (case-insensitive) and return a JSON
-        array of the matched surface forms.  This gives the mock the same
-        postprocessing behaviour as the real LLM without an API call.
+        Handles phrasal-verb detection prompts by scanning KNOWN_PHRASAL_VERBS,
+        or returns a deterministic text response.
         """
         import json as _json
-        prompt_lower = prompt.lower()
-        if "phrasal verb" in prompt_lower or "separable verb" in prompt_lower:
-            # Extract the text after "Text:\n" in the prompt
-            text_section = ""
-            if "Text:\n" in prompt:
-                text_section = prompt.split("Text:\n", 1)[1].strip()
+
+        if user_content is None:
+            if prompt is not None:
+                user_content = prompt
             else:
-                text_section = prompt
+                user_content = system_prompt or ""
+                system_prompt = None
+
+        combined = f"{(system_prompt or '').lower()}\n{(user_content or '').lower()}"
+
+        if "phrasal verb" in combined or "separable verb" in combined:
+            text_section = ""
+            if "Text:\n" in user_content:
+                text_section = user_content.split("Text:\n", 1)[1].strip()
+            else:
+                text_section = user_content
 
             text_lower = text_section.lower()
             found: list[str] = []
-            # Sort longest first to match "look forward to" before "look"
             for phrase in sorted(self.KNOWN_PHRASAL_VERBS, key=len, reverse=True):
                 if phrase in text_lower:
-                    # Find the surface form (preserve original casing)
                     idx = text_lower.find(phrase)
                     surface = text_section[idx: idx + len(phrase)]
                     found.append(surface)
             return _json.dumps(found)
-        return f"Mock response for prompt: {prompt[:50]}"
+
+        return f"Mock response for prompt: {user_content[:50]}"
+
+    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Minimal completion delegating to send_message."""
+        return await self.send_message(system_prompt=system_prompt, user_content=prompt)
 
     async def extract_vocabulary(
         self,

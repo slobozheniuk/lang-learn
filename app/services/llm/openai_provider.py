@@ -121,84 +121,47 @@ class OpenAILikeProvider(LLMProvider):
             f"Return ONLY valid JSON."
         )
 
-    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
-        messages = []
+    async def send_message(
+        self,
+        system_prompt: str | None = None,
+        user_content: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+        *,
+        prompt: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        """Send a message to the LLM with user content and optional system prompt, returning raw string response."""
+        if user_content is None:
+            if prompt is not None:
+                user_content = prompt
+            else:
+                user_content = system_prompt or ""
+                system_prompt = None
+
+        messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": user_content})
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.2,
+            "temperature": temperature,
         }
+        if response_format:
+            payload["response_format"] = response_format
 
         start_time = time.perf_counter()
         logger.info(
-            f"External LLM API Request [complete]: model='{self.model}', base_url='{self.base_url}', "
-            f"prompt_length={len(prompt)}"
+            f"External LLM API Request [send_message]: model='{self.model}', base_url='{self.base_url}', "
+            f"messages_count={len(messages)}, prompt_length={len(user_content)}"
         )
 
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                resp = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                duration_ms = (time.perf_counter() - start_time) * 1000
-                usage = data.get("usage", {})
-                logger.info(
-                    f"External LLM API Response [complete]: model='{self.model}', status={resp.status_code}, "
-                    f"duration={duration_ms:.2f}ms, prompt_tokens={usage.get('prompt_tokens', 'N/A')}, "
-                    f"completion_tokens={usage.get('completion_tokens', 'N/A')}, total_tokens={usage.get('total_tokens', 'N/A')}"
-                )
-                return data["choices"][0]["message"]["content"]
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.error(
-                f"External LLM API Error [complete]: model='{self.model}', duration={duration_ms:.2f}ms, error='{e}'",
-                exc_info=True,
-            )
-            raise
-
-    async def extract_vocabulary(
-        self,
-        text: str,
-        source_lang: str,
-        target_lang: str,
-    ) -> LLMTranslationResponse:
-        system_prompt = self.build_system_prompt(source_lang=source_lang, target_lang=target_lang)
-        user_content = f"Input Text to process:\n{text.strip()}"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-        }
-
-        start_time = time.perf_counter()
-        logger.info(
-            f"External LLM API Request [extract_vocabulary]: model='{self.model}', base_url='{self.base_url}', "
-            f"pair='{source_lang}->{target_lang}', text_preview='{text[:40].strip()}...', length={len(text)}"
-        )
-
-        raw_content = ""
-        # Try request with JSON mode, fallback if response_format unsupported
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             try:
                 resp = await client.post(
@@ -212,10 +175,11 @@ class OpenAILikeProvider(LLMProvider):
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 usage = data.get("usage", {})
                 logger.info(
-                    f"External LLM API Response [extract_vocabulary]: model='{self.model}', status={resp.status_code}, "
+                    f"External LLM API Response [send_message]: model='{self.model}', status={resp.status_code}, "
                     f"duration={duration_ms:.2f}ms, prompt_tokens={usage.get('prompt_tokens', 'N/A')}, "
                     f"completion_tokens={usage.get('completion_tokens', 'N/A')}, total_tokens={usage.get('total_tokens', 'N/A')}"
                 )
+                return raw_content
             except httpx.HTTPStatusError as e:
                 # If 400 with response_format issue, retry without response_format
                 if payload.get("response_format"):
@@ -232,10 +196,11 @@ class OpenAILikeProvider(LLMProvider):
                     duration_ms = (time.perf_counter() - start_time) * 1000
                     usage = data.get("usage", {})
                     logger.info(
-                        f"External LLM API Response (retry) [extract_vocabulary]: model='{self.model}', status={resp.status_code}, "
+                        f"External LLM API Response (retry) [send_message]: model='{self.model}', status={resp.status_code}, "
                         f"duration={duration_ms:.2f}ms, prompt_tokens={usage.get('prompt_tokens', 'N/A')}, "
                         f"completion_tokens={usage.get('completion_tokens', 'N/A')}"
                     )
+                    return raw_content
                 else:
                     duration_ms = (time.perf_counter() - start_time) * 1000
                     logger.error(
@@ -246,10 +211,29 @@ class OpenAILikeProvider(LLMProvider):
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.error(
-                    f"External LLM API Communication Error: model='{self.model}', duration={duration_ms:.2f}ms, error='{e}'",
+                    f"External LLM API Error: model='{self.model}', duration={duration_ms:.2f}ms, error='{e}'",
                     exc_info=True,
                 )
                 raise
+
+    async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        return await self.send_message(system_prompt=system_prompt, user_content=prompt)
+
+    async def extract_vocabulary(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+    ) -> LLMTranslationResponse:
+        system_prompt = self.build_system_prompt(source_lang=source_lang, target_lang=target_lang)
+        user_content = f"Input Text to process:\n{text.strip()}"
+
+        raw_content = await self.send_message(
+            system_prompt=system_prompt,
+            user_content=user_content,
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
 
         parsed_response = self._parse_and_validate(raw_content, text)
         logger.info(
@@ -278,54 +262,16 @@ class OpenAILikeProvider(LLMProvider):
         if text:
             user_content += f"\nSource text context:\n{text.strip()}\n"
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.3,
-            "response_format": {"type": "json_object"},
-        }
-
-        start_time = time.perf_counter()
-        logger.info(
-            f"External LLM API Request [generate_quiz]: model='{self.model}', words_count={len(words)}"
+        raw_content = await self.send_message(
+            system_prompt=system_prompt,
+            user_content=user_content,
+            temperature=0.3,
+            response_format={"type": "json_object"},
         )
 
-        raw_content = ""
-        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            try:
-                resp = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                raw_content = data["choices"][0]["message"]["content"]
-            except httpx.HTTPStatusError as e:
-                if payload.get("response_format"):
-                    payload.pop("response_format", None)
-                    resp = await client.post(
-                        f"{self.base_url}/chat/completions",
-                        headers=headers,
-                        json=payload,
-                    )
-                    resp.raise_for_status()
-                    data = resp.json()
-                    raw_content = data["choices"][0]["message"]["content"]
-                else:
-                    raise
-
         parsed_quiz = self._parse_and_validate_quiz(raw_content)
-        duration_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
-            f"LLM Quiz generated successfully: {len(parsed_quiz.questions)} questions, duration={duration_ms:.2f}ms"
+            f"LLM Quiz generated successfully: {len(parsed_quiz.questions)} questions"
         )
         return parsed_quiz
 
@@ -427,70 +373,21 @@ class OpenAILikeProvider(LLMProvider):
             f"Authentic Target-Language Input Text:\n{text.strip()}"
         )
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-        }
-
-        start_time = time.perf_counter()
-        logger.info(
-            f"External LLM API Request [generate_ilya_frank]: model='{self.model}', base_url='{self.base_url}', "
-            f"pair='{source_lang}->{target_lang}', text_len={len(text)}, selected_count={len(selected_words)}"
-        )
-
-        raw_content = ""
-        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            try:
-                resp = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                raw_content = data["choices"][0]["message"]["content"]
-                duration_ms = (time.perf_counter() - start_time) * 1000
-                logger.info(
-                    f"External LLM API Response [generate_ilya_frank]: model='{self.model}', status={resp.status_code}, duration={duration_ms:.2f}ms"
-                )
-            except httpx.HTTPStatusError as e:
-                if payload.get("response_format"):
-                    logger.warning(f"LLM json response_format unsupported; retrying standard request: {e}")
-                    payload.pop("response_format", None)
-                    resp = await client.post(
-                        f"{self.base_url}/chat/completions",
-                        headers=headers,
-                        json=payload,
-                    )
-                    resp.raise_for_status()
-                    data = resp.json()
-                    raw_content = data["choices"][0]["message"]["content"]
-                else:
-                    logger.error(f"External LLM API HTTP Error [generate_ilya_frank]: {e}", exc_info=True)
-                    # Graceful fallback to mock deterministic adaptation
-                    return MockLLMProvider.generate_mock_adaptation(
-                        text=text,
-                        selected_words=selected_words,
-                        source_lang=source_lang,
-                        target_lang=target_lang,
-                    )
-            except Exception as e:
-                logger.error(f"External LLM API Communication Error [generate_ilya_frank]: {e}", exc_info=True)
-                return MockLLMProvider.generate_mock_adaptation(
-                    text=text,
-                    selected_words=selected_words,
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                )
+        try:
+            raw_content = await self.send_message(
+                system_prompt=system_prompt,
+                user_content=user_content,
+                temperature=0.2,
+                response_format={"type": "json_object"},
+            )
+        except Exception as e:
+            logger.error(f"External LLM API Error [generate_ilya_frank]: {e}", exc_info=True)
+            return MockLLMProvider.generate_mock_adaptation(
+                text=text,
+                selected_words=selected_words,
+                source_lang=source_lang,
+                target_lang=target_lang,
+            )
 
         try:
             return parse_and_validate_adaptation(raw_content, text)

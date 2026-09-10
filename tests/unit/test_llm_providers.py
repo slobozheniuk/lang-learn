@@ -194,3 +194,45 @@ def test_llm_factory():
         assert isinstance(real_p, OpenAILikeProvider)
         assert real_p.api_key == "nous-key-123"
 
+
+@pytest.mark.asyncio
+async def test_mock_llm_provider_send_message():
+    provider = MockLLMProvider()
+
+    # Generic message
+    resp = await provider.send_message(user_content="Hello world", system_prompt="Be helpful")
+    assert "Mock response" in resp
+
+    # Phrasal verb detection prompt
+    phrasal_prompt = "Find phrasal verbs in this Text:\nHe decided to get off the train and give up."
+    resp_pv = await provider.send_message(user_content=phrasal_prompt, system_prompt="You detect phrasal verbs.")
+    data = json.loads(resp_pv)
+    assert "get off" in data
+    assert "give up" in data
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_send_message():
+    provider = OpenAILikeProvider(api_key="test_key", model="test-model")
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        "choices": [{"message": {"content": "Hello back!"}}],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+    }
+    mock_resp.raise_for_status.return_value = None
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        reply = await provider.send_message(
+            system_prompt="You are a tutor.",
+            user_content="Hi there",
+            temperature=0.5,
+        )
+        assert reply == "Hello back!"
+
+        called_json = mock_post.call_args[1]["json"]
+        assert called_json["model"] == "test-model"
+        assert called_json["temperature"] == 0.5
+        assert called_json["messages"][0] == {"role": "system", "content": "You are a tutor."}
+        assert called_json["messages"][1] == {"role": "user", "content": "Hi there"}
+
