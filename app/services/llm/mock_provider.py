@@ -228,6 +228,9 @@ class MockLLMProvider(LLMProvider):
         if len(tokens) > 3:
             title = f"Lesson: {' '.join(tokens[:3])}..."
 
+        from app.services.nlp import nlp_service
+        nlp_service.enrich_vocabulary(items, language_code=target_lang, context=cleaned)
+
         return LLMTranslationResponse(
             title=title,
             items=items,
@@ -348,17 +351,14 @@ class MockLLMProvider(LLMProvider):
                 # Look up word information
                 dict_info = lookup(target_clean, target_lang) if lookup else None
                 translation = dict_info[0] if dict_info else f"перевод_{target}"
-                pos = dict_info[1] if dict_info else ("phrase" if " " in target else "noun")
                 phonetic = dict_info[2] if dict_info else None
-                lemma = target_clean
 
-                # Determine gender annotation (Dutch het/de or Slavic m/f)
-                gender = None
-                if target_lang == "nl":
-                    if target_clean in {"huis", "boek", "woord", "kind", "water"}:
-                        gender = "het"
-                    elif pos == "noun":
-                        gender = "de"
+                from app.services.nlp import nlp_service
+                meta = nlp_service.extract_word_metadata(target_clean, language_code=target_lang, context=raw_excerpt)
+                pos = dict_info[1] if dict_info else meta["pos"]
+                lemma = meta["lemma"]
+                gender = meta["gender"]
+                is_irreg = meta["is_irregular"]
 
                 # Check frequency for Rule 14/15
                 current_count = global_word_counts.get(target_clean, 0)
@@ -405,7 +405,7 @@ class MockLLMProvider(LLMProvider):
                             literal_translation=literal,
                             literary_translation=translation,
                             gender=gender,
-                            is_irregular=False,
+                            is_irregular=is_irreg,
                         )
                     )
 

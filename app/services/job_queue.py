@@ -194,6 +194,9 @@ class JobQueueService:
                     )
                 ]
 
+            from app.services.nlp import nlp_service
+            nlp_service.enrich_vocabulary(items, language_code=job.target_lang, context=job.input_text)
+
             is_multi_sentence = count_sentences(job.input_text) > 1
 
             # Upsert target-language words and their SRS stats

@@ -279,12 +279,8 @@ Every text is divided into sequential Excerpts (E1, E2, ... En):
       "vocabulary_extracted": [
         {{
           "text": "word/phrase",
-          "lemma": "lemma",
-          "pos": "VERB/NOUN/...",
           "literal_translation": "...",
-          "literary_translation": "...",
-          "gender": null,
-          "is_irregular": false
+          "literary_translation": "..."
         }}
       ]
     }}
@@ -294,8 +290,10 @@ Return ONLY valid JSON.
 """
 
 
-def parse_and_validate_adaptation(raw_llm_json: str, original_text: str) -> IlyaFrankResponse:
-    """Parse raw LLM output, enforce Pydantic schema validation, and ensure unadapted passage fidelity."""
+def parse_and_validate_adaptation(
+    raw_llm_json: str, original_text: str, target_lang: str | None = None
+) -> IlyaFrankResponse:
+    """Parse raw LLM output, enforce Pydantic schema validation, enrich word metadata via spaCy, and ensure fidelity."""
     content = raw_llm_json.strip()
     if content.startswith("```"):
         content = re.sub(r"^```(?:json)?\n?", "", content)
@@ -304,12 +302,20 @@ def parse_and_validate_adaptation(raw_llm_json: str, original_text: str) -> Ilya
     data = json.loads(content)
     parsed = IlyaFrankResponse.model_validate(data)
 
-    # Invariant post-processing: Guarantee fidelity for each excerpt
+    from app.services.nlp import nlp_service
+
+    # Invariant post-processing: Guarantee fidelity for each excerpt and enrich vocabulary with spaCy
     for excerpt in parsed.excerpts:
         if len(parsed.excerpts) == 1 and original_text:
             orig_faithful, _ = validate_unadapted_fidelity(excerpt.adapted_text, original_text.strip())
             if orig_faithful:
                 excerpt.raw_text = original_text.strip()
+                if excerpt.vocabulary_extracted:
+                    nlp_service.enrich_vocabulary(
+                        excerpt.vocabulary_extracted,
+                        language_code=target_lang or "nl",
+                        context=excerpt.raw_text,
+                    )
                 continue
 
         # Check and enforce Ui == strip_glosses(Ai)
@@ -319,5 +325,12 @@ def parse_and_validate_adaptation(raw_llm_json: str, original_text: str) -> Ilya
                 f"LLM excerpt {excerpt.index} had fidelity drift; auto-reconciling raw_text from stripped adapted_text"
             )
             excerpt.raw_text = strip_glosses(excerpt.adapted_text)
+
+        if excerpt.vocabulary_extracted:
+            nlp_service.enrich_vocabulary(
+                excerpt.vocabulary_extracted,
+                language_code=target_lang or "nl",
+                context=excerpt.raw_text,
+            )
 
     return parsed

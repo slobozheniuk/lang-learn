@@ -15,7 +15,7 @@ import logging
 import re
 import subprocess
 import sys
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from app.services.llm.base import LLMChunkItem, LLMChunkResponse
 
@@ -340,6 +340,180 @@ class SpacyNLPService:
                 chunks = self._merge_phrasal_verbs(chunks, phrasal_verbs)
 
         return LLMChunkResponse(title=None, chunks=chunks, raw_text=text)
+
+    # ------------------------------------------------------------------
+    # Morphological & Metadata Extraction
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _infer_gender(token: Any, nlp: Any, lang: str) -> str | None:
+        """Infer grammatical gender (e.g. Dutch 'de'/'het' or Romance/Germanic 'm'/'f'/'n')."""
+        if token.pos_ not in ("NOUN", "PROPN"):
+            return None
+
+        genders = token.morph.get("Gender")
+        if not genders and token.lemma_:
+            # For plural nouns or forms where gender is absent on inflected token, query lemma
+            lemma_doc = nlp(token.lemma_)
+            if len(lemma_doc) > 0:
+                genders = lemma_doc[0].morph.get("Gender")
+
+        if not genders:
+            return None
+
+        g = genders[0]
+        if lang == "nl":
+            return "het" if g == "Neut" else ("de" if g == "Com" else g)
+        return {"Masc": "m", "Fem": "f", "Neut": "n"}.get(g, g.lower())
+
+    @staticmethod
+    def _is_verb_irregular(text: str, lemma: str, morph: dict[str, str], lang: str) -> bool:
+        """Check if verb inflection represents a strong / irregular form."""
+        t_low = text.lower()
+        l_low = lemma.lower()
+        if lang == "nl":
+            if morph.get("Tense") == "Past" or morph.get("VerbForm") == "Part":
+                stem = l_low[:-2] if l_low.endswith("en") else (l_low[:-1] if l_low.endswith("n") else l_low)
+                if not t_low.startswith(stem[:max(2, len(stem) - 1)]):
+                    return True
+                if morph.get("Tense") == "Past" and not t_low.endswith(("de", "den", "te", "ten")):
+                    return True
+            return False
+        if lang == "en":
+            if morph.get("Tense") == "Past" or morph.get("VerbForm") == "Part":
+                if not t_low.endswith(("ed", "d")) or l_low not in t_low:
+                    return True
+            return False
+        return False
+
+    def extract_word_metadata(
+        self,
+        text: str,
+        language_code: str,
+        context: str | None = None,
+    ) -> dict[str, Any]:
+        """Extract lemma, POS, gender, and morphological features using spaCy."""
+        clean_text = text.strip().strip(".,!?:;\"'()«»")
+        lang = language_code.lower().strip()
+        nlp = self._load_model(lang)
+
+        fallback: dict[str, Any] = {
+            "text": clean_text,
+            "lemma": clean_text.lower(),
+            "pos": "phrase" if " " in clean_text else "word",
+            "gender": None,
+            "number": None,
+            "tense": None,
+            "verb_form": None,
+            "is_irregular": False,
+        }
+        if nlp is None or not clean_text:
+            return fallback
+
+        # 1. Try to find the token within the provided authentic context for disambiguation
+        target_token = None
+        if context and clean_text.lower() in context.lower():
+            try:
+                cdoc = nlp(context)
+                for t in cdoc:
+                    if t.text.lower() == clean_text.lower():
+                        target_token = t
+                        break
+            except Exception as e:
+                logger.warning(f"Error parsing context for metadata extraction: {e}")
+
+        # 2. If not found in context, process the target text directly
+        if target_token is None:
+            try:
+                doc = nlp(clean_text)
+                content_tokens = [t for t in doc if not t.is_punct and not t.is_space]
+                if not content_tokens:
+                    return fallback
+
+                # Multi-word collocation / expression
+                if len(content_tokens) > 1:
+                    verb_tok = next((t for t in content_tokens if t.pos_ == "VERB"), None)
+                    is_irreg = (
+                        self._is_verb_irregular(verb_tok.text, verb_tok.lemma_, verb_tok.morph.to_dict(), lang)
+                        if verb_tok
+                        else False
+                    )
+                    return {
+                        "text": clean_text,
+                        "lemma": clean_text.lower(),
+                        "pos": "VERB" if verb_tok else "phrase",
+                        "gender": None,
+                        "number": None,
+                        "tense": verb_tok.morph.get("Tense")[0] if verb_tok and verb_tok.morph.get("Tense") else None,
+                        "verb_form": verb_tok.morph.get("VerbForm")[0] if verb_tok and verb_tok.morph.get("VerbForm") else None,
+                        "is_irregular": is_irreg,
+                    }
+
+                target_token = content_tokens[0]
+            except Exception as e:
+                logger.warning(f"Error extracting word metadata for '{clean_text}': {e}")
+                return fallback
+
+        morph = target_token.morph.to_dict()
+        is_irreg = (
+            self._is_verb_irregular(target_token.text, target_token.lemma_, morph, lang)
+            if target_token.pos_ == "VERB"
+            else False
+        )
+
+        return {
+            "text": clean_text,
+            "lemma": target_token.lemma_.lower(),
+            "pos": target_token.pos_,
+            "gender": self._infer_gender(target_token, nlp, lang),
+            "number": morph.get("Number"),
+            "tense": morph.get("Tense"),
+            "verb_form": morph.get("VerbForm"),
+            "is_irregular": is_irreg,
+        }
+
+    def enrich_vocabulary(
+        self,
+        words: list[Any],
+        language_code: str,
+        context: str | None = None,
+    ) -> list[Any]:
+        """Enrich a list of word items (dicts or Pydantic models) with spaCy metadata."""
+        if not words:
+            return words
+
+        for item in words:
+            surface: str | None = None
+            if isinstance(item, dict):
+                surface = item.get("text") or item.get("target_text") or item.get("word")
+            else:
+                surface = getattr(item, "text", None) or getattr(item, "target_text", None) or getattr(item, "word", None)
+
+            if not surface:
+                continue
+
+            meta = self.extract_word_metadata(surface, language_code=language_code, context=context)
+
+            if isinstance(item, dict):
+                if not item.get("lemma"):
+                    item["lemma"] = meta["lemma"]
+                if not item.get("pos"):
+                    item["pos"] = meta["pos"]
+                if not item.get("gender") and meta.get("gender"):
+                    item["gender"] = meta["gender"]
+                if item.get("is_irregular") is None:
+                    item["is_irregular"] = meta["is_irregular"]
+            else:
+                if hasattr(item, "lemma") and not getattr(item, "lemma", None):
+                    setattr(item, "lemma", meta["lemma"])
+                if hasattr(item, "pos") and not getattr(item, "pos", None):
+                    setattr(item, "pos", meta["pos"])
+                if hasattr(item, "gender") and not getattr(item, "gender", None) and meta.get("gender"):
+                    setattr(item, "gender", meta["gender"])
+                if hasattr(item, "is_irregular") and getattr(item, "is_irregular", None) is None:
+                    setattr(item, "is_irregular", meta["is_irregular"])
+
+        return words
 
 
 # Singleton instance shared across the application

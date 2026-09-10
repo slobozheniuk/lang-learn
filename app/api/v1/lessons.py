@@ -65,6 +65,8 @@ async def _extract_words_from_text(
     extracted = await job_queue_service.llm.extract_vocabulary(
         text=text, source_lang=source_lang, target_lang=target_lang
     )
+    from app.services.nlp import nlp_service
+    nlp_service.enrich_vocabulary(extracted.items, language_code=target_lang, context=text)
     words: list[Word] = []
     for item in extracted.items:
         info = _item_to_word_info(item)

@@ -108,13 +108,11 @@ class OpenAILikeProvider(LLMProvider):
             f"2. For each extracted vocabulary unit:\n"
             f"   - 'target_text': The word, idiom, or collocation in the user's learning (target) language ({tgt_label}).\n"
             f"   - 'source_text': The accurate translation and definition in the user's native language ({src_label}).\n"
-            f"   - 'pos': Part of speech (e.g., noun, verb, adjective, adverb, phrase, etc.).\n"
             f"   - 'phonetic': Accurate IPA phonetic transcription for the learning language word ('target_text').\n"
-            f"   - 'lemma': Dictionary base form of 'target_text' in {tgt_label}.\n"
             f"   - 'context_phrase': A natural, clear example sentence in the learning language ({tgt_label}) demonstrating 'target_text' in context.\n"
             f"3. Provide a concise, descriptive 'title' summarizing the lesson or vocabulary theme.\n\n"
             f"Output MUST be strict JSON in this format:\n"
-            f'{{"title": "Lesson title", "items": [{{"source_text": "...", "target_text": "...", "pos": "...", "phonetic": "...", "lemma": "...", "context_phrase": "..."}}]}}\n'
+            f'{{"title": "Lesson title", "items": [{{"source_text": "...", "target_text": "...", "phonetic": "...", "context_phrase": "..."}}]}}\n'
             f"Return ONLY valid JSON."
         )
 
@@ -259,6 +257,8 @@ class OpenAILikeProvider(LLMProvider):
         )
 
         parsed_response = self._parse_and_validate(raw_content, text)
+        from app.services.nlp import nlp_service
+        nlp_service.enrich_vocabulary(parsed_response.items, language_code=target_lang, context=text)
         logger.info(
             f"LLM response parsed successfully: extracted {len(parsed_response.items)} items, title='{parsed_response.title}'"
         )
@@ -341,7 +341,7 @@ class OpenAILikeProvider(LLMProvider):
             )
 
         try:
-            return parse_and_validate_adaptation(raw_content, text)
+            return parse_and_validate_adaptation(raw_content, text, target_lang=target_lang)
         except Exception as e:
             logger.warning(f"Failed to parse LLM Ilya Frank JSON response ({e}); falling back to deterministic adaptation: {raw_content[:200]}")
             return MockLLMProvider.generate_mock_adaptation(

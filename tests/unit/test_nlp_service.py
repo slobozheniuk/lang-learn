@@ -181,3 +181,69 @@ def test_phrasal_verb_langs_contains_expected():
     assert "de" in PHRASAL_VERB_LANGS
     assert "fr" not in PHRASAL_VERB_LANGS
     assert "ru" not in PHRASAL_VERB_LANGS
+
+
+# ---------------------------------------------------------------------------
+# Metadata Extraction & Enrichment
+# ---------------------------------------------------------------------------
+
+
+def test_extract_word_metadata_dutch_nouns():
+    svc = SpacyNLPService()
+    
+    # Common gender noun
+    m_koning = svc.extract_word_metadata("koning", "nl")
+    assert m_koning["lemma"] == "koning"
+    assert m_koning["pos"] == "NOUN"
+    assert m_koning["gender"] == "de"
+
+    # Neuter gender noun
+    m_huis = svc.extract_word_metadata("huis", "nl")
+    assert m_huis["lemma"] == "huis"
+    assert m_huis["pos"] == "NOUN"
+    assert m_huis["gender"] == "het"
+
+    # Plural noun (lemma inquiry gives singular gender)
+    m_vogels = svc.extract_word_metadata("vogels", "nl")
+    assert m_vogels["lemma"] == "vogel"
+    assert m_vogels["pos"] == "NOUN"
+    assert m_vogels["gender"] == "de"
+
+
+def test_extract_word_metadata_dutch_verbs():
+    svc = SpacyNLPService()
+    
+    # Strong / irregular verb
+    m_vonden = svc.extract_word_metadata("vonden", "nl", context="Zij vonden het brood.")
+    assert m_vonden["lemma"] == "vinden"
+    assert m_vonden["pos"] == "VERB"
+    assert m_vonden["is_irregular"] is True
+
+    # Regular weak verb
+    m_werkte = svc.extract_word_metadata("werkte", "nl", context="Hij werkte de hele dag.")
+    assert m_werkte["lemma"] == "werken"
+    assert m_werkte["pos"] == "VERB"
+    assert m_werkte["is_irregular"] is False
+
+
+def test_extract_word_metadata_multiword_phrase():
+    svc = SpacyNLPService()
+    m_phrase = svc.extract_word_metadata("een einde maken aan", "nl")
+    assert m_phrase["lemma"] == "een einde maken aan"
+    assert m_phrase["pos"] == "VERB"
+
+
+def test_enrich_vocabulary():
+    from app.schemas.word import WordBase
+
+    svc = SpacyNLPService()
+    words = [
+        WordBase(text="vogels"),
+        WordBase(text="vonden"),
+    ]
+    enriched = svc.enrich_vocabulary(words, language_code="nl", context="De vogels vonden brood.")
+    assert enriched[0].lemma == "vogel"
+    assert enriched[0].gender == "de"
+    assert enriched[1].lemma == "vinden"
+    assert enriched[1].is_irregular is True
+
