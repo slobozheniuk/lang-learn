@@ -9,9 +9,9 @@ from pydantic import ValidationError
 from app.schemas.ilya_frank import IlyaFrankResponse
 from app.services.ilya_frank import (
     build_ilya_frank_system_prompt,
-    generate_mock_adaptation,
     parse_and_validate_adaptation,
 )
+from app.services.llm.mock_provider import MockLLMProvider
 from app.services.llm.base import (
     LLMProvider,
     LLMQuizQuestion,
@@ -477,7 +477,7 @@ class OpenAILikeProvider(LLMProvider):
                 else:
                     logger.error(f"External LLM API HTTP Error [generate_ilya_frank]: {e}", exc_info=True)
                     # Graceful fallback to mock deterministic adaptation
-                    return generate_mock_adaptation(
+                    return MockLLMProvider.generate_mock_adaptation(
                         text=text,
                         selected_words=selected_words,
                         source_lang=source_lang,
@@ -485,7 +485,7 @@ class OpenAILikeProvider(LLMProvider):
                     )
             except Exception as e:
                 logger.error(f"External LLM API Communication Error [generate_ilya_frank]: {e}", exc_info=True)
-                return generate_mock_adaptation(
+                return MockLLMProvider.generate_mock_adaptation(
                     text=text,
                     selected_words=selected_words,
                     source_lang=source_lang,
@@ -496,7 +496,7 @@ class OpenAILikeProvider(LLMProvider):
             return parse_and_validate_adaptation(raw_content, text)
         except Exception as e:
             logger.warning(f"Failed to parse LLM Ilya Frank JSON response ({e}); falling back to deterministic adaptation: {raw_content[:200]}")
-            return generate_mock_adaptation(
+            return MockLLMProvider.generate_mock_adaptation(
                 text=text,
                 selected_words=selected_words,
                 source_lang=source_lang,

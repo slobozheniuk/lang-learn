@@ -1,7 +1,11 @@
+from collections.abc import Callable
 import logging
 import re
 from typing import Any
-from app.schemas.ilya_frank import IlyaFrankResponse
+
+from app.schemas.ilya_frank import IlyaFrankExcerpt, IlyaFrankResponse
+from app.schemas.word import WordBase
+from app.services.ilya_frank import format_canonical_frank_gloss, segment_text_into_excerpts
 from app.services.llm.base import (
     LLMProvider,
     LLMQuizQuestion,
@@ -308,9 +312,129 @@ class MockLLMProvider(LLMProvider):
             title=title,
         )
 
-    def _lookup(self, word: str, lang: str):
-        lang_dict = self.DICTIONARY.get(lang.lower(), {})
+    @classmethod
+    def _lookup(cls, word: str, lang: str) -> tuple | None:
+        lang_dict = cls.DICTIONARY.get(lang.lower(), {})
         return lang_dict.get(word.lower())
+
+    @classmethod
+    def generate_mock_adaptation(
+        cls,
+        text: str,
+        selected_words: list[str],
+        source_lang: str,
+        target_lang: str,
+        dictionary_lookup: Callable[[str, str], tuple | None] | None = None,
+    ) -> IlyaFrankResponse:
+        """Deterministic rule-based Frank adaptation generator for testing and offline modes.
+
+        Guarantees:
+        - 100% adherence to Rule 1 (Ai -> Ui pairing), Rule 2 (excerpt sizing), Rule 3 (punctuation invariant),
+          Rule 18 (intra-chunk non-redundancy).
+        - Exact fidelity: strip_glosses(Ai) == Ui.
+        """
+        effective_text = (text or "").strip()
+        if not effective_text:
+            effective_text = ", ".join(selected_words) if selected_words else "Vocabulary practice."
+
+        lookup = dictionary_lookup or cls._lookup
+        raw_excerpts = segment_text_into_excerpts(effective_text)
+        result_excerpts: list[IlyaFrankExcerpt] = []
+
+        # Track occurrences across the entire text to support Rule 14 & Rule 15 (only initial 2-3 occurrences)
+        global_word_counts: dict[str, int] = {}
+
+        for exc_idx, raw_excerpt in enumerate(raw_excerpts, start=1):
+            adapted = raw_excerpt
+            extracted_vocab: list[WordBase] = []
+            glossed_in_excerpt: set[str] = set()
+
+            # Sort selected words by length descending to match multi-word collocations first
+            normalized_targets = sorted(
+                [w.strip() for w in selected_words if w.strip()],
+                key=len,
+                reverse=True,
+            )
+
+            for target in normalized_targets:
+                target_clean = target.lower()
+                if target_clean in glossed_in_excerpt:
+                    continue
+
+                # Look up word information
+                dict_info = lookup(target_clean, target_lang) if lookup else None
+                translation = dict_info[0] if dict_info else f"перевод_{target}"
+                pos = dict_info[1] if dict_info else ("phrase" if " " in target else "noun")
+                phonetic = dict_info[2] if dict_info else None
+                lemma = target_clean
+
+                # Determine gender annotation (Dutch het/de or Slavic m/f)
+                gender = None
+                if target_lang == "nl":
+                    if target_clean in {"huis", "boek", "woord", "kind", "water"}:
+                        gender = "het"
+                    elif pos == "noun":
+                        gender = "de"
+
+                # Check frequency for Rule 14/15
+                current_count = global_word_counts.get(target_clean, 0)
+                show_morphology = current_count < 3
+                global_word_counts[target_clean] = current_count + 1
+
+                # Format gloss using Frank canonical notation
+                rule_style = 7 if (exc_idx % 2 == 1 and len(target_clean) > 5) else 8
+                literal = f"lit_{target}" if rule_style in (7, 8) else None
+
+                gloss = format_canonical_frank_gloss(
+                    surface_word=target,
+                    translation=translation,
+                    lemma=lemma if show_morphology else None,
+                    pos=pos,
+                    gender=gender if show_morphology else None,
+                    literal=literal,
+                    rule_style=rule_style,
+                )
+
+                # Insert gloss immediately after the word and BEFORE trailing punctuation (Rule 3)
+                # Find the FIRST occurrence in this excerpt (Rule 18 non-redundancy)
+                pattern = re.compile(
+                    r"\b(" + re.escape(target) + r")([.,!?;:…—–]?)",
+                    re.IGNORECASE,
+                )
+                match = pattern.search(adapted)
+                if match:
+                    matched_word = match.group(1)
+                    trailing_punct = match.group(2) or ""
+                    # Replace only first occurrence
+                    replacement = f"{matched_word} {gloss}{trailing_punct}"
+                    adapted = adapted[: match.start()] + replacement + adapted[match.end() :]
+                    glossed_in_excerpt.add(target_clean)
+
+                    extracted_vocab.append(
+                        WordBase(
+                            language_code=target_lang,
+                            text=matched_word,
+                            lemma=lemma,
+                            pos=pos,
+                            phonetic=phonetic,
+                            translation=translation,
+                            literal_translation=literal,
+                            literary_translation=translation,
+                            gender=gender,
+                            is_irregular=False,
+                        )
+                    )
+
+            result_excerpts.append(
+                IlyaFrankExcerpt(
+                    index=exc_idx,
+                    adapted_text=adapted,
+                    raw_text=raw_excerpt,
+                    vocabulary_extracted=extracted_vocab,
+                )
+            )
+
+        return IlyaFrankResponse(excerpts=result_excerpts)
 
     async def generate_ilya_frank(
         self,
@@ -318,12 +442,10 @@ class MockLLMProvider(LLMProvider):
         selected_words: list[str],
         source_lang: str,
         target_lang: str,
-    ) -> "IlyaFrankResponse":
-        from app.services.ilya_frank import generate_mock_adaptation
-        return generate_mock_adaptation(
+    ) -> IlyaFrankResponse:
+        return self.generate_mock_adaptation(
             text=text,
             selected_words=selected_words,
             source_lang=source_lang,
             target_lang=target_lang,
-            dictionary_lookup=self._lookup,
         )

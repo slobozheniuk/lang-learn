@@ -13,7 +13,6 @@ Validates:
 from app.schemas.ilya_frank import IlyaFrankExcerpt, IlyaFrankResponse
 from app.services.ilya_frank import (
     format_canonical_frank_gloss,
-    generate_mock_adaptation,
     parse_and_validate_adaptation,
     segment_text_into_excerpts,
     strip_glosses,
@@ -21,6 +20,7 @@ from app.services.ilya_frank import (
     validate_punctuation_invariant,
     validate_unadapted_fidelity,
 )
+from app.services.llm.mock_provider import MockLLMProvider
 
 
 def test_strip_glosses_with_punctuation_invariants():
@@ -169,7 +169,7 @@ def test_generate_mock_adaptation_end_to_end():
         "train": ("поезд", "noun", "/treɪn/"),
     }
 
-    resp = generate_mock_adaptation(
+    resp = MockLLMProvider.generate_mock_adaptation(
         text=text,
         selected_words=selected,
         source_lang="ru",
