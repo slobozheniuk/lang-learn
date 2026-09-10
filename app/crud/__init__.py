@@ -1,7 +1,12 @@
+"""Barrel re-exporting all CRUD helpers.
+
+Import from the specific module (e.g. ``from app.crud.word import get_or_create_word``)
+when possible; this module provides a flat namespace for convenience.
+"""
+
 from app.crud.job import (
     create_job,
     get_job,
-    get_pending_jobs,
     update_job,
 )
 from app.crud.language import (
@@ -13,6 +18,7 @@ from app.crud.language import (
 from app.crud.lesson import (
     add_word_to_lesson,
     create_lesson,
+    delete_lesson,
     get_lesson_by_id,
     get_lesson_words,
     get_user_lessons,
@@ -26,7 +32,7 @@ from app.crud.stats import (
 )
 from app.crud.user import (
     create_user,
-    get_user_by_email,
+    ensure_admin_user,
     get_user_by_id,
     get_user_by_username,
     get_user_by_username_or_email,
@@ -40,44 +46,42 @@ from app.crud.word import (
     get_word_by_text_and_lang,
     get_words,
 )
-from app.crud.word_association import (
-    get_association,
-    get_associations_for_word,
-    get_or_create_association,
-)
 
 __all__ = [
+    # language
     "get_languages",
     "get_language_by_code",
     "create_language",
     "seed_default_languages",
+    # user
     "get_user_by_id",
-    "get_user_by_email",
     "get_user_by_username",
     "get_user_by_username_or_email",
     "create_user",
     "update_user",
+    "ensure_admin_user",
+    # word
     "get_word_by_id",
     "get_word_by_text_and_lang",
     "get_words",
     "create_word",
     "get_or_create_word",
     "delete_word",
+    # stats
     "get_user_word_stats",
     "get_or_create_user_word_stats",
     "upsert_user_word_stats",
     "get_due_words",
+    # lesson
     "get_lesson_by_id",
     "get_user_lessons",
     "create_lesson",
     "add_word_to_lesson",
     "get_lesson_words",
     "update_lesson_status",
-    "get_association",
-    "get_or_create_association",
-    "get_associations_for_word",
+    "delete_lesson",
+    # job
     "create_job",
     "get_job",
     "update_job",
-    "get_pending_jobs",
 ]

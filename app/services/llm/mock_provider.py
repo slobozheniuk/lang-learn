@@ -296,40 +296,6 @@ class MockLLMProvider(LLMProvider):
         quiz_title = title or (f"Quiz: {word_items[0].get('text', 'Vocabulary')}" if word_items else "Vocabulary Quiz")
         return LLMQuizResponse(title=quiz_title, questions=questions)
 
-    async def generate_quiz_questions(
-        self,
-        words: list[Any],
-        native_lang: str,
-        target_lang: str,
-        text: str | None = None,
-        title: str | None = None,
-    ) -> LLMQuizResponse:
-        """Deterministic mock for generating multiple choice questions."""
-        normalized_words: list[dict[str, Any]] = []
-        for w in words:
-            if isinstance(w, dict):
-                normalized_words.append(w)
-            elif isinstance(w, str):
-                normalized_words.append({"text": w, "translation": w})
-            elif hasattr(w, "text"):
-                normalized_words.append({
-                    "text": getattr(w, "text", ""),
-                    "translation": getattr(w, "translation", ""),
-                    "pos": getattr(w, "pos", None),
-                    "phonetic": getattr(w, "phonetic", None),
-                    "context_phrase": getattr(w, "context_phrase", None),
-                })
-            else:
-                normalized_words.append({"text": str(w)})
-
-        return await self.generate_quiz(
-            words=normalized_words,
-            source_lang=native_lang,
-            target_lang=target_lang,
-            text=text,
-            title=title,
-        )
-
     @classmethod
     def _lookup(cls, word: str, lang: str) -> tuple | None:
         lang_dict = cls.DICTIONARY.get(lang.lower(), {})

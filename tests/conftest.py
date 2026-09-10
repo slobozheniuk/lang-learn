@@ -1,3 +1,5 @@
+"""Shared pytest fixtures: isolated in-memory database, test client, and users."""
+
 from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
@@ -32,6 +34,32 @@ engine = create_engine(
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+def make_user(
+    db: Session,
+    username: str,
+    password: str = "testpassword123",
+    source_lang: str = "ru",
+    target_lang: str = "en",
+) -> User:
+    """Create a user (with its initial learning profile) directly in the DB."""
+    return create_user(
+        db,
+        UserCreate(
+            username=username,
+            password=password,
+            source_language=source_lang,
+            target_language=target_lang,
+        ),
+        hashed_password=hash_password(password),
+    )
+
+
+def auth_headers_for(user: User) -> dict[str, str]:
+    """Authorization header with a valid JWT for the given user."""
+    token = create_access_token(data={"sub": str(user.id), "username": user.username})
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture(autouse=True)
 def configure_test_llm():
     prev_provider = job_queue_service._llm_provider
@@ -55,10 +83,7 @@ def db_session() -> Generator[Session, None, None]:
 @pytest.fixture(scope="function")
 def client(db_session: Session) -> Generator[TestClient, None, None]:
     def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+        yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
@@ -68,25 +93,17 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
 @pytest.fixture(scope="function")
 def test_user(db_session: Session) -> User:
-    user_in = UserCreate(
-        username="testuser",
-        password="securepassword123",
-        default_source_lang="ru",
-        default_target_lang="en",
-    )
-    hashed_pw = hash_password(user_in.password)
-    user = create_user(db_session, user_in, hashed_password=hashed_pw)
-    return user
+    return make_user(db_session, "testuser", source_lang="ru", target_lang="en")
 
 
 @pytest.fixture(scope="function")
 def auth_headers(test_user: User) -> dict[str, str]:
-    token = create_access_token(data={"sub": str(test_user.id), "username": test_user.username})
-    return {"Authorization": f"Bearer {token}"}
+    return auth_headers_for(test_user)
 
 
 @pytest.fixture(scope="function")
 def sample_words(db_session: Session, test_user: User) -> list[Word]:
+    """Three words owned by test_user: two English, one Dutch."""
     words_data = [
         WordCreate(
             language_code="en",

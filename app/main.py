@@ -9,7 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from app.api.v1.api import api_router
 from app.config import settings
 from app.crud.language import seed_default_languages
-from app.database import SessionLocal, engine, ensure_db_schema_updated
+from app.crud.user import ensure_admin_user
+from app.database import SessionLocal, engine
 from app.logging_config import RequestLoggingMiddleware, purge_old_log_files, setup_logging
 from app.models.base import Base
 from app.services.job_queue import job_queue_service
@@ -23,13 +24,11 @@ logger = logging.getLogger("app.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info(f"Starting {settings.PROJECT_NAME} backend application...")
-    # Initialize DB tables
+    # Create tables (fresh databases); schema changes go through alembic migrations.
     Base.metadata.create_all(bind=engine)
-    ensure_db_schema_updated()
     # Seed default languages (ru, en, nl) and ensure admin user
     with SessionLocal() as db:
         seed_default_languages(db)
-        from app.crud.user import ensure_admin_user
         ensure_admin_user(db)
     # Background log cleanup routine (retention: 7 days)
     purge_old_log_files(max_days=settings.LOG_BACKUP_DAYS)
@@ -42,7 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Shutting down background services...")
     await scheduler_service.stop()
     await job_queue_service.stop_worker()
-    logger.info(f"{settings.PROJECT_NAME} shutdown completed.")
+    logger.info(f"{settings.PROJECT_NAME} shutdown completed successfully.")
 
 
 def create_app() -> FastAPI:
@@ -82,5 +81,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-

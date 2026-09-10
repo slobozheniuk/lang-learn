@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+"""User profile endpoints.
+
+The canonical "me" endpoints (GET/PATCH /me) live under /auth. This router is
+kept as a thin alias for backwards compatibility of the /users prefix.
+"""
+
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.api.v1._shared import update_current_user
 from app.auth.dependencies import get_current_user
-from app.crud.language import get_language_by_code
-from app.crud.user import (
-    get_user_by_username,
-    update_user,
-)
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserRead, UserUpdate
@@ -26,14 +28,4 @@ def update_me(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UserRead:
-
-    if user_in.username and user_in.username.strip() != current_user.username:
-        existing = get_user_by_username(db, user_in.username)
-        if existing and existing.id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A user with this username already exists.",
-            )
-
-    updated = update_user(db, current_user, user_in)
-    return UserRead.model_validate(updated)
+    return update_current_user(db, current_user, user_in)

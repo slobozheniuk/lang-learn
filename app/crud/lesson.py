@@ -8,6 +8,8 @@ from app.models.lesson_word import LessonWord
 from app.models.word import Word
 from app.schemas.lesson import LessonCreate
 
+logger = logging.getLogger("app.crud.lesson")
+
 
 def get_lesson_by_id(db: Session, lesson_id: int) -> Lesson | None:
     return db.scalar(
@@ -38,33 +40,19 @@ def get_user_lessons(
     return list(db.scalars(stmt).unique().all())
 
 
+def _dump_or_none(value) -> str | None:
+    """Serialize lesson data payloads (dict/list) to JSON strings for storage."""
+    if value is None:
+        return None
+    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+
+
 def create_lesson(
     db: Session,
     user_id: int,
     lesson_in: LessonCreate,
     status: str = "pending",
 ) -> Lesson:
-    quiz_str = None
-    if lesson_in.quiz_data is not None:
-        if isinstance(lesson_in.quiz_data, str):
-            quiz_str = lesson_in.quiz_data
-        else:
-            quiz_str = json.dumps(lesson_in.quiz_data)
-
-    chunk_str = None
-    if getattr(lesson_in, "chunk_data", None) is not None:
-        if isinstance(lesson_in.chunk_data, str):
-            chunk_str = lesson_in.chunk_data
-        else:
-            chunk_str = json.dumps(lesson_in.chunk_data)
-
-    ilya_frank_str = None
-    if getattr(lesson_in, "ilya_frank_data", None) is not None:
-        if isinstance(lesson_in.ilya_frank_data, str):
-            ilya_frank_str = lesson_in.ilya_frank_data
-        else:
-            ilya_frank_str = json.dumps(lesson_in.ilya_frank_data)
-
     lesson = Lesson(
         user_id=user_id,
         source_lang=lesson_in.source_lang.lower().strip(),
@@ -73,9 +61,9 @@ def create_lesson(
         raw_input=lesson_in.raw_input,
         input_type=lesson_in.input_type.lower().strip(),
         status=status,
-        quiz_data=quiz_str,
-        chunk_data=chunk_str,
-        ilya_frank_data=ilya_frank_str,
+        quiz_data=_dump_or_none(lesson_in.quiz_data),
+        chunk_data=_dump_or_none(lesson_in.chunk_data),
+        ilya_frank_data=_dump_or_none(lesson_in.ilya_frank_data),
         is_completed=lesson_in.is_completed,
     )
     db.add(lesson)
@@ -130,21 +118,16 @@ def update_lesson_status(db: Session, lesson_id: int, status: str) -> Lesson | N
 def delete_lesson(db: Session, lesson_id: int, user_id: int | None = None) -> bool:
     lesson = get_lesson_by_id(db, lesson_id)
     if not lesson:
-        logging.getLogger("app.crud.lesson").warning(
-            f"Lesson deletion failed: id={lesson_id} not found."
-        )
+        logger.warning(f"Lesson deletion failed: id={lesson_id} not found.")
         return False
 
     if user_id is not None and lesson.user_id != user_id:
-        logging.getLogger("app.crud.lesson").warning(
+        logger.warning(
             f"Lesson deletion failed: lesson_id={lesson_id} does not belong to user_id={user_id}."
         )
         return False
 
     db.delete(lesson)
     db.commit()
-    logging.getLogger("app.crud.lesson").info(
-        f"Lesson deleted: id={lesson_id}, user_id={user_id}"
-    )
+    logger.info(f"Lesson deleted: id={lesson_id}, user_id={user_id}")
     return True
-

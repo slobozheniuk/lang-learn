@@ -4,17 +4,14 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.auth.security import hash_password, create_access_token
-from app.crud.lesson import create_lesson, get_lesson_by_id
+from app.crud.lesson import create_lesson
 from app.crud.stats import get_or_create_user_word_stats
-from app.crud.user import create_user
 from app.crud.word import get_or_create_word
 from app.models.lesson import Lesson
 from app.models.user import User
-from app.models.user_word_stats import UserWordStats
 from app.models.word import Word
 from app.schemas.lesson import LessonCreate, LessonRead, QuizQuestion, QuizData
-from app.schemas.user import UserCreate
+from tests.conftest import auth_headers_for, make_user
 from app.services.job_queue import count_sentences, JobQueueService
 from app.services.llm.mock_provider import MockLLMProvider
 from app.services.llm.openai_provider import OpenAILikeProvider
@@ -99,11 +96,7 @@ async def test_openai_like_provider_generate_quiz_questions(monkeypatch):
 
 def test_lesson_model_quiz_data_column(db_session: Session):
     """Test Lesson table quiz_data column and schema parsing."""
-    user = create_user(
-        db_session,
-        UserCreate(username="quiz_user", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
+    user = make_user(db_session, "quiz_user", source_lang="ru", target_lang="en")
     quiz_payload = {
         "title": "Sample Quiz",
         "questions": [
@@ -141,11 +134,7 @@ def test_lesson_model_quiz_data_column(db_session: Session):
 @pytest.mark.asyncio
 async def test_job_queue_disables_auto_lesson(db_session: Session):
     """Verify job_queue.py does not create lessons automatically and only stores words."""
-    user = create_user(
-        db_session,
-        UserCreate(username="no_auto_lesson", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
+    user = make_user(db_session, "no_auto_lesson", source_lang="ru", target_lang="en")
 
     mock_llm = MockLLMProvider()
     jq = JobQueueService(llm_provider=mock_llm, session_factory=lambda: db_session)
@@ -169,14 +158,9 @@ async def test_job_queue_disables_auto_lesson(db_session: Session):
 
 def test_submit_text_sentence_count_and_multi_sentence_flag(client: TestClient, db_session: Session):
     """Test submit-text endpoint returns sentence_count and is_multi_sentence correctly."""
-    user = create_user(
-        db_session,
-        UserCreate(username="sentence_test", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
+    user = make_user(db_session, "sentence_test", source_lang="ru", target_lang="en")
 
-    token = create_access_token(data={"sub": str(user.id)})
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = auth_headers_for(user)
 
     # 1. Single sentence with < 5 words
     resp1 = client.post(
@@ -213,17 +197,12 @@ def test_submit_text_sentence_count_and_multi_sentence_flag(client: TestClient, 
 
 def test_generate_quiz_endpoint(client: TestClient, db_session: Session):
     """Test POST /api/v1/lessons/generate-quiz with word_ids and with raw text."""
-    user = create_user(
-        db_session,
-        UserCreate(username="quiz_api_user", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
+    user = make_user(db_session, "quiz_api_user", source_lang="ru", target_lang="en")
 
     w1 = get_or_create_word(db_session, language_code="en", text="sun", translation="солнце")
     w2 = get_or_create_word(db_session, language_code="en", text="moon", translation="луна")
 
-    token = create_access_token(data={"sub": str(user.id)})
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = auth_headers_for(user)
 
     # 1. Generate quiz by word_ids
     resp = client.post(
@@ -253,11 +232,7 @@ def test_generate_quiz_endpoint(client: TestClient, db_session: Session):
 @pytest.mark.asyncio
 async def test_scheduler_nightly_revision_check(db_session: Session):
     """Test nightly revision check generates a revision quiz only when conditions are met."""
-    user = create_user(
-        db_session,
-        UserCreate(username="sched_user", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
+    user = make_user(db_session, "sched_user", source_lang="ru", target_lang="en")
 
     w1 = get_or_create_word(db_session, language_code="en", text="house", translation="дом")
     w2 = get_or_create_word(db_session, language_code="en", text="dog", translation="собака")
@@ -290,11 +265,7 @@ async def test_scheduler_nightly_revision_check(db_session: Session):
 @pytest.mark.asyncio
 async def test_check_and_generate_revision_quizzes_function(db_session: Session):
     """Test check_and_generate_revision_quizzes function for all users."""
-    user = create_user(
-        db_session,
-        UserCreate(username="rev_quizzes_user", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
+    user = make_user(db_session, "rev_quizzes_user", source_lang="ru", target_lang="en")
     w = get_or_create_word(db_session, language_code="en", text="sun", translation="солнце")
     now = datetime(2026, 8, 29, 12, 0, 0, tzinfo=timezone.utc)
     stats = get_or_create_user_word_stats(db_session, user_id=user.id, word_id=w.id)
@@ -312,23 +283,11 @@ def test_multi_user_lesson_isolation(client: TestClient, db_session: Session):
     """Verify that User B cannot see, access, or complete User A's lessons."""
     from app.models.learning_profile import LearningProfile
 
-    user_a = create_user(
-        db_session,
-        UserCreate(username="lesson_user_a", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
+    user_a = make_user(db_session, "lesson_user_a", password="password123")
+    user_b = make_user(db_session, "lesson_user_b", password="password123")
 
-    user_b = create_user(
-        db_session,
-        UserCreate(username="lesson_user_b", password="password123", source_language="ru", target_language="en"),
-        hashed_password=hash_password("password123"),
-    )
-
-    token_a = create_access_token(data={"sub": str(user_a.id), "username": user_a.username})
-    headers_a = {"Authorization": f"Bearer {token_a}"}
-
-    token_b = create_access_token(data={"sub": str(user_b.id), "username": user_b.username})
-    headers_b = {"Authorization": f"Bearer {token_b}"}
+    headers_a = auth_headers_for(user_a)
+    headers_b = auth_headers_for(user_b)
 
     # User A creates a lesson
     lesson_in = LessonCreate(

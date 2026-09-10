@@ -4,7 +4,7 @@ import re
 import time
 from typing import Any
 import httpx
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.schemas.ilya_frank import IlyaFrankResponse
 from app.services.ilya_frank import (
@@ -14,7 +14,6 @@ from app.services.ilya_frank import (
 from app.services.llm.mock_provider import MockLLMProvider
 from app.services.llm.base import (
     LLMProvider,
-    LLMQuizQuestion,
     LLMQuizResponse,
     LLMTranslationResponse,
 )
@@ -45,6 +44,36 @@ def get_language_display(code: str) -> str:
     cleaned = code.lower().strip() if code else ""
     name = LANGUAGE_NAMES.get(cleaned)
     return f"{name} ({cleaned})" if name else code
+
+
+def parse_llm_json(raw_content: str, model: type[BaseModel], list_fallback_key: str | None = None) -> BaseModel:
+    """Parse an LLM completion into a Pydantic model.
+
+    Handles markdown code fences and falls back to extracting the first JSON
+    object. If the payload is a bare list, wraps it as ``{list_fallback_key: [...]}``.
+    """
+    cleaned = raw_content.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+        cleaned = cleaned.strip()
+
+    try:
+        parsed_json = json.loads(cleaned)
+    except json.JSONDecodeError as err:
+        logger.warning(f"Failed to decode JSON from LLM: {err}. Raw content: {raw_content[:200]}")
+        match = re.search(r"\{[\s\S]*\}", cleaned)
+        if match:
+            parsed_json = json.loads(match.group(0))
+        else:
+            raise ValueError(f"LLM returned invalid non-JSON output: {raw_content[:200]}") from err
+
+    try:
+        return model.model_validate(parsed_json)
+    except ValidationError:
+        if isinstance(parsed_json, list) and list_fallback_key:
+            return model.model_validate({list_fallback_key: parsed_json})
+        raise
 
 
 class OpenAILikeProvider(LLMProvider):
@@ -88,7 +117,6 @@ class OpenAILikeProvider(LLMProvider):
             f'{{"title": "Lesson title", "items": [{{"source_text": "...", "target_text": "...", "pos": "...", "phonetic": "...", "lemma": "...", "context_phrase": "..."}}]}}\n'
             f"Return ONLY valid JSON."
         )
-
 
     @staticmethod
     def build_quiz_system_prompt(source_lang: str, target_lang: str) -> str:
@@ -170,16 +198,7 @@ class OpenAILikeProvider(LLMProvider):
                     json=payload,
                 )
                 resp.raise_for_status()
-                data = resp.json()
-                raw_content = data["choices"][0]["message"]["content"]
-                duration_ms = (time.perf_counter() - start_time) * 1000
-                usage = data.get("usage", {})
-                logger.info(
-                    f"External LLM API Response [send_message]: model='{self.model}', status={resp.status_code}, "
-                    f"duration={duration_ms:.2f}ms, prompt_tokens={usage.get('prompt_tokens', 'N/A')}, "
-                    f"completion_tokens={usage.get('completion_tokens', 'N/A')}, total_tokens={usage.get('total_tokens', 'N/A')}"
-                )
-                return raw_content
+                return self._extract_content(resp, start_time)
             except httpx.HTTPStatusError as e:
                 # If 400 with response_format issue, retry without response_format
                 if payload.get("response_format"):
@@ -191,23 +210,15 @@ class OpenAILikeProvider(LLMProvider):
                         json=payload,
                     )
                     resp.raise_for_status()
-                    data = resp.json()
-                    raw_content = data["choices"][0]["message"]["content"]
-                    duration_ms = (time.perf_counter() - start_time) * 1000
-                    usage = data.get("usage", {})
-                    logger.info(
-                        f"External LLM API Response (retry) [send_message]: model='{self.model}', status={resp.status_code}, "
-                        f"duration={duration_ms:.2f}ms, prompt_tokens={usage.get('prompt_tokens', 'N/A')}, "
-                        f"completion_tokens={usage.get('completion_tokens', 'N/A')}"
-                    )
-                    return raw_content
-                else:
-                    duration_ms = (time.perf_counter() - start_time) * 1000
-                    logger.error(
-                        f"External LLM API HTTP Error: model='{self.model}', status={e.response.status_code}, duration={duration_ms:.2f}ms, response={e.response.text[:200]}",
-                        exc_info=True,
-                    )
-                    raise
+                    return self._extract_content(resp, start_time)
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                logger.error(
+                    f"External LLM API HTTP Error: model='{self.model}', status={e.response.status_code}, duration={duration_ms:.2f}ms, response={e.response.text[:200]}",
+                    exc_info=True,
+                )
+                raise
+            except httpx.HTTPStatusError:
+                raise
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.error(
@@ -215,6 +226,18 @@ class OpenAILikeProvider(LLMProvider):
                     exc_info=True,
                 )
                 raise
+
+    def _extract_content(self, resp: httpx.Response, start_time: float) -> str:
+        data = resp.json()
+        raw_content = data["choices"][0]["message"]["content"]
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        usage = data.get("usage", {})
+        logger.info(
+            f"External LLM API Response [send_message]: model='{self.model}', status={resp.status_code}, "
+            f"duration={duration_ms:.2f}ms, prompt_tokens={usage.get('prompt_tokens', 'N/A')}, "
+            f"completion_tokens={usage.get('completion_tokens', 'N/A')}, total_tokens={usage.get('total_tokens', 'N/A')}"
+        )
+        return raw_content
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         return await self.send_message(system_prompt=system_prompt, user_content=prompt)
@@ -275,89 +298,13 @@ class OpenAILikeProvider(LLMProvider):
         )
         return parsed_quiz
 
-    async def generate_quiz_questions(
-        self,
-        words: list[Any],
-        native_lang: str,
-        target_lang: str,
-        text: str | None = None,
-        title: str | None = None,
-    ) -> LLMQuizResponse:
-        """Prompt LLM for multiple choice questions in JSON:
-        {"title": "...", "questions": [{"question": "...", "options": ["..."], "correct_index": 0, "explanation": "..."}]}
-        """
-        normalized_words: list[dict[str, Any]] = []
-        for w in words:
-            if isinstance(w, dict):
-                normalized_words.append(w)
-            elif isinstance(w, str):
-                normalized_words.append({"text": w, "translation": w})
-            elif hasattr(w, "text"):
-                normalized_words.append({
-                    "text": getattr(w, "text", ""),
-                    "translation": getattr(w, "translation", ""),
-                    "pos": getattr(w, "pos", None),
-                    "phonetic": getattr(w, "phonetic", None),
-                    "context_phrase": getattr(w, "context_phrase", None),
-                })
-            else:
-                normalized_words.append({"text": str(w)})
-
-        return await self.generate_quiz(
-            words=normalized_words,
-            source_lang=native_lang,
-            target_lang=target_lang,
-            text=text,
-            title=title,
-        )
-
     def _parse_and_validate(self, raw_content: str, original_text: str) -> LLMTranslationResponse:
-        cleaned = raw_content.strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"\n?```$", "", cleaned)
-            cleaned = cleaned.strip()
-
-        try:
-            parsed_json = json.loads(cleaned)
-        except json.JSONDecodeError as err:
-            logger.warning(f"Failed to decode JSON from LLM: {err}. Raw content: {raw_content[:200]}")
-            match = re.search(r"\{[\s\S]*\}", cleaned)
-            if match:
-                parsed_json = json.loads(match.group(0))
-            else:
-                raise ValueError(f"LLM returned invalid non-JSON output: {raw_content[:200]}") from err
-
-        try:
-            return LLMTranslationResponse.model_validate(parsed_json)
-        except ValidationError:
-            if isinstance(parsed_json, list):
-                return LLMTranslationResponse.model_validate({"items": parsed_json})
-            raise
+        return parse_llm_json(raw_content, LLMTranslationResponse, list_fallback_key="items")
 
     def _parse_and_validate_quiz(self, raw_content: str) -> LLMQuizResponse:
-        cleaned = raw_content.strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"\n?```$", "", cleaned)
-            cleaned = cleaned.strip()
-
-        try:
-            parsed_json = json.loads(cleaned)
-        except json.JSONDecodeError as err:
-            logger.warning(f"Failed to decode Quiz JSON from LLM: {err}. Raw content: {raw_content[:200]}")
-            match = re.search(r"\{[\s\S]*\}", cleaned)
-            if match:
-                parsed_json = json.loads(match.group(0))
-            else:
-                raise ValueError(f"LLM returned invalid non-JSON quiz output: {raw_content[:200]}") from err
-
-        try:
-            return LLMQuizResponse.model_validate(parsed_json)
-        except ValidationError:
-            if isinstance(parsed_json, list):
-                return LLMQuizResponse.model_validate({"title": "Generated Quiz", "questions": parsed_json})
-            raise
+        return parse_llm_json(
+            raw_content, LLMQuizResponse, list_fallback_key="questions"
+        )
 
     async def generate_ilya_frank(
         self,
@@ -399,4 +346,3 @@ class OpenAILikeProvider(LLMProvider):
                 source_lang=source_lang,
                 target_lang=target_lang,
             )
-

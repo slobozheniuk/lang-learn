@@ -201,10 +201,7 @@ def test_multi_user_review_isolation(
     auth_headers: dict[str, str],
     db_session: Session,
 ):
-    from app.auth.security import create_access_token, hash_password
-    from app.crud.user import create_user
-    from app.models.learning_profile import LearningProfile
-    from app.schemas.user import UserCreate
+    from tests.conftest import auth_headers_for, make_user
 
     # User A has 2 English words due
     r_due_a = client.get("/api/v1/review/due", headers=auth_headers)
@@ -212,16 +209,8 @@ def test_multi_user_review_isolation(
     assert len(r_due_a.json()) == 2
 
     # Create User B
-    user_b_in = UserCreate(
-        username="reviewer_b",
-        password="password123",
-        default_source_lang="ru",
-        default_target_lang="en",
-    )
-    user_b = create_user(db_session, user_b_in, hashed_password=hash_password(user_b_in.password))
-
-    token_b = create_access_token(data={"sub": str(user_b.id), "username": user_b.username})
-    headers_b = {"Authorization": f"Bearer {token_b}"}
+    user_b = make_user(db_session, "reviewer_b")
+    headers_b = auth_headers_for(user_b)
 
     # User B checks due reviews -> should see 0 items (strict isolation!)
     r_due_b = client.get("/api/v1/review/due", headers=headers_b)

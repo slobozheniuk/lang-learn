@@ -32,19 +32,19 @@ class LLMQuizQuestion(BaseModel):
     explanation: str | None = Field(default=None, description="Short explanation why this answer is correct")
     target_word: str | None = Field(default=None, description="The vocabulary word being tested")
 
+    @model_validator(mode="before")
     @classmethod
-    def model_validate(cls, obj: Any, *args: Any, **kwargs: Any) -> "LLMQuizQuestion":
-        if isinstance(obj, dict):
-            if "correct_option_index" in obj and obj.get("correct_index") is None:
-                obj["correct_index"] = obj["correct_option_index"]
-            elif "correct_index" in obj and obj.get("correct_option_index") is None:
-                obj["correct_option_index"] = obj["correct_index"]
-            
-            opts = obj.get("options")
-            idx = obj.get("correct_index", 0)
-            if isinstance(opts, list) and isinstance(idx, int) and 0 <= idx < len(opts) and not obj.get("correct_answer"):
-                obj["correct_answer"] = opts[idx]
-        return super().model_validate(obj, *args, **kwargs)
+    def sync_correct_index_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "correct_option_index" in data and "correct_index" not in data:
+                data["correct_index"] = data["correct_option_index"]
+            elif "correct_index" in data and "correct_option_index" not in data:
+                data["correct_option_index"] = data["correct_index"]
+            opts = data.get("options")
+            idx = data.get("correct_index", 0)
+            if isinstance(opts, list) and isinstance(idx, int) and 0 <= idx < len(opts) and not data.get("correct_answer"):
+                data["correct_answer"] = opts[idx]
+        return data
 
 
 class LLMQuizResponse(BaseModel):
@@ -73,7 +73,6 @@ class LLMChunkItem(BaseModel):
             elif "is_selectable" in data and "is_word" not in data:
                 data["is_word"] = bool(data["is_selectable"])
             elif "is_selectable" in data and "is_word" in data:
-                # Keep both in sync if one differs
                 if not data["is_selectable"]:
                     data["is_word"] = False
                 elif not data["is_word"]:
@@ -102,7 +101,7 @@ class LLMProvider(ABC):
         target_lang: str,
     ) -> LLMTranslationResponse:
         """Extract vocabulary items with translations, POS, phonetic, and context."""
-        pass
+        ...
 
     @abstractmethod
     async def generate_quiz(
@@ -114,7 +113,7 @@ class LLMProvider(ABC):
         title: str | None = None,
     ) -> LLMQuizResponse:
         """Generate structured multiple-choice quiz questions for given words or text."""
-        pass
+        ...
 
     async def generate_quiz_questions(
         self,
@@ -124,15 +123,27 @@ class LLMProvider(ABC):
         text: str | None = None,
         title: str | None = None,
     ) -> LLMQuizResponse:
-        """Prompt LLM for multiple choice questions in JSON:
-        {"title": "...", "questions": [{"question": "...", "options": ["..."], "correct_index": 0, "explanation": "..."}]}
-        """
+        """Legacy alias of generate_quiz that accepts mixed word input formats."""
+        normalized: list[dict[str, Any]] = []
+        for w in words:
+            if isinstance(w, dict):
+                normalized.append(w)
+            elif isinstance(w, str):
+                normalized.append({"text": w, "translation": w})
+            elif hasattr(w, "text"):
+                normalized.append(
+                    {
+                        "text": getattr(w, "text", ""),
+                        "translation": getattr(w, "translation", ""),
+                        "pos": getattr(w, "pos", None),
+                        "phonetic": getattr(w, "phonetic", None),
+                        "context_phrase": getattr(w, "context_phrase", None),
+                    }
+                )
+            else:
+                normalized.append({"text": str(w)})
         return await self.generate_quiz(
-            words=words,
-            source_lang=native_lang,
-            target_lang=target_lang,
-            text=text,
-            title=title,
+            words=normalized, source_lang=native_lang, target_lang=target_lang, text=text, title=title
         )
 
     @abstractmethod
@@ -147,7 +158,7 @@ class LLMProvider(ABC):
         **kwargs: Any,
     ) -> str:
         """Send a message to the LLM with user content and optional system prompt, returning raw string response."""
-        pass
+        ...
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         """Raw completion method delegating to send_message."""
@@ -160,6 +171,6 @@ class LLMProvider(ABC):
         selected_words: list[str],
         source_lang: str,
         target_lang: str,
-    ) -> "IlyaFrankResponse":
+    ) -> IlyaFrankResponse:
         """Generate Ilya Frank dual-pass text adaptation enforcing 27 canonical rules."""
-        pass
+        ...

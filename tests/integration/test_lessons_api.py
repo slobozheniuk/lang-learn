@@ -2,17 +2,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.security import create_access_token, hash_password
 from app.crud.lesson import add_word_to_lesson, create_lesson
-from app.crud.user import create_user
 from app.models.job import Job
-from app.models.learning_profile import LearningProfile
 from app.models.lesson import Lesson
 from app.models.lesson_word import LessonWord
 from app.models.user import User
 from app.models.word import Word
 from app.schemas.lesson import LessonCreate
-from app.schemas.user import UserCreate
+from tests.conftest import auth_headers_for, make_user
 
 
 def test_delete_lesson_success(
@@ -106,15 +103,8 @@ def test_delete_lesson_unauthorized_user_isolation(
     lesson_a = create_lesson(db_session, user_id=test_user.id, lesson_in=lesson_in, status="ready")
 
     # Create User B
-    user_b_in = UserCreate(
-        username="user_b_tester",
-        password="testpassword123",
-        default_source_lang="ru",
-        default_target_lang="en",
-    )
-    user_b = create_user(db_session, user_b_in, hashed_password=hash_password("testpassword123"))
-    token_b = create_access_token(data={"sub": str(user_b.id), "username": user_b.username})
-    headers_b = {"Authorization": f"Bearer {token_b}"}
+    user_b = make_user(db_session, "user_b_tester")
+    headers_b = auth_headers_for(user_b)
 
     # User B attempts to delete User A's lesson
     res = client.delete(f"/api/v1/lessons/{lesson_a.id}", headers=headers_b)
