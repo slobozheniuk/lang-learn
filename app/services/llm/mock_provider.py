@@ -11,7 +11,6 @@ from app.services.llm.base import (
     LLMQuizQuestion,
     LLMQuizResponse,
     LLMTranslationResponse,
-    LLMWordItem,
 )
 
 logger = logging.getLogger("app.services.llm.mock")
@@ -138,7 +137,7 @@ class MockLLMProvider(LLMProvider):
         target_lang: str,
     ) -> LLMTranslationResponse:
         cleaned = text.strip()
-        items: list[LLMWordItem] = []
+        items: list[WordBase] = []
 
         # 1. Check if user typed a pair like "text - translation" or "text -> translation"
         pair_match = re.match(r"^(.+?)\s*(?:[-–—=:]|->|=>)\s*(.+)$", cleaned)
@@ -155,9 +154,9 @@ class MockLLMProvider(LLMProvider):
             context = dict_info[3] if dict_info else f"Example context for '{target_text}'."
 
             items.append(
-                LLMWordItem(
-                    source_text=source_text,
-                    target_text=target_text,
+                WordBase(
+                    text=target_text,
+                    translation=source_text,
                     pos=pos,
                     phonetic=phonetic,
                     lemma=target_text.lower(),
@@ -187,9 +186,9 @@ class MockLLMProvider(LLMProvider):
             if dict_info:
                 trans, pos, phonetic, ctx = dict_info
                 items.append(
-                    LLMWordItem(
-                        source_text=trans,
-                        target_text=token_clean,
+                    WordBase(
+                        text=token_clean,
+                        translation=trans,
                         pos=pos,
                         phonetic=phonetic,
                         lemma=token_clean.lower(),
@@ -202,9 +201,9 @@ class MockLLMProvider(LLMProvider):
                 if src_dict:
                     target_w, pos, phonetic, ctx = src_dict
                     items.append(
-                        LLMWordItem(
-                            source_text=token_clean,
-                            target_text=target_w,
+                        WordBase(
+                            text=target_w,
+                            translation=token_clean,
                             pos=pos,
                             phonetic=phonetic,
                             lemma=target_w.lower(),
@@ -214,9 +213,9 @@ class MockLLMProvider(LLMProvider):
                 else:
                     # Fallback synthetic translation
                     items.append(
-                        LLMWordItem(
-                            source_text=f"перевод_{token_clean}",
-                            target_text=token_clean,
+                        WordBase(
+                            text=token_clean,
+                            translation=f"перевод_{token_clean}",
                             pos="word",
                             phonetic=f"/{token_clean}/",
                             lemma=token_clean.lower(),

@@ -2,7 +2,8 @@ import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.llm.base import LLMQuizQuestion, LLMQuizResponse, LLMTranslationResponse, LLMWordItem
+from app.schemas.word import WordBase
+from app.services.llm.base import LLMQuizQuestion, LLMQuizResponse, LLMTranslationResponse
 from app.services.llm.factory import get_llm_provider
 from app.services.llm.mock_provider import MockLLMProvider
 from app.services.llm.openai_provider import OpenAILikeProvider
@@ -235,4 +236,33 @@ async def test_openai_provider_send_message():
         assert called_json["temperature"] == 0.5
         assert called_json["messages"][0] == {"role": "system", "content": "You are a tutor."}
         assert called_json["messages"][1] == {"role": "user", "content": "Hi there"}
+
+
+def test_word_base_and_llm_word_item_unification():
+    # 1. Instantiation via domain fields (text, translation)
+    w1 = WordBase(text="appel", translation="яблоко", pos="noun")
+    assert w1.text == "appel"
+    assert w1.translation == "яблоко"
+    assert w1.target_text == "appel"
+    assert w1.source_text == "яблоко"
+    assert w1.word == "appel"
+
+    # 2. Instantiation via LLM/legacy aliases (target_text, source_text)
+    w2 = WordBase.model_validate({"target_text": "boom", "source_text": "дерево", "pos": "noun"})
+    assert w2.text == "boom"
+    assert w2.translation == "дерево"
+    assert w2.target_text == "boom"
+    assert w2.source_text == "дерево"
+
+    # 3. Instantiation via keyword args with aliases
+    w3 = WordBase(target_text="fiets", source_text="велосипед")
+    assert w3.text == "fiets"
+    assert w3.translation == "велосипед"
+
+    # 4. LLMTranslationResponse integration
+    resp = LLMTranslationResponse(title="Test", items=[w1, w2, w3])
+    assert len(resp.items) == 3
+    assert resp.items[0].text == "appel"
+    assert resp.items[1].text == "boom"
+    assert resp.items[2].text == "fiets"
 

@@ -185,12 +185,12 @@ class JobQueueService:
             items = llm_response.items
             if not items:
                 # No items extracted: make a synthetic fallback item
-                from app.services.llm.base import LLMWordItem
+                from app.schemas.word import WordBase
 
                 items = [
-                    LLMWordItem(
-                        source_text=job.input_text,
-                        target_text=job.input_text,
+                    WordBase(
+                        text=job.input_text,
+                        translation=job.input_text,
                     )
                 ]
 
@@ -205,12 +205,12 @@ class JobQueueService:
                 word = get_or_create_word(
                     db,
                     language_code=job.target_lang,
-                    text=getattr(item, "target_text", None) or item.text,
-                    translation=getattr(item, "source_text", None) or item.translation,
-                    pos=getattr(item, "pos", None),
-                    phonetic=getattr(item, "phonetic", None),
-                    lemma=getattr(item, "lemma", None),
-                    context_phrase=getattr(item, "context_phrase", None),
+                    text=item.text,
+                    translation=item.translation,
+                    pos=item.pos,
+                    phonetic=item.phonetic,
+                    lemma=item.lemma,
+                    context_phrase=item.context_phrase,
                 )
                 get_or_create_user_word_stats(db, user_id=job.user_id, word_id=word.id)
                 created_words.append(word)

@@ -3,20 +3,12 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.ilya_frank import IlyaFrankResponse
-
-
-class LLMWordItem(BaseModel):
-    source_text: str = Field(..., description="The word or collocation in the source language")
-    target_text: str = Field(..., description="The translated word or collocation in the target language")
-    pos: str | None = Field(default=None, description="Part of speech (e.g. noun, verb, adjective, phrase)")
-    phonetic: str | None = Field(default=None, description="Phonetic transcription (IPA or pronunciation guide)")
-    lemma: str | None = Field(default=None, description="Base/dictionary lemma of the target word")
-    context_phrase: str | None = Field(default=None, description="Example sentence or contextual usage phrase")
+from app.schemas.word import WordBase
 
 
 class LLMTranslationResponse(BaseModel):
     title: str | None = Field(default=None, description="Optional descriptive title for the lesson or text snippet")
-    items: list[LLMWordItem] = Field(
+    items: list[WordBase] = Field(
         default_factory=list,
         description="List of extracted smallest meaningful vocabulary units and collocations",
     )

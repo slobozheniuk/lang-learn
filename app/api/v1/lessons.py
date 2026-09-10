@@ -42,18 +42,6 @@ router = APIRouter()
 # Word resolution helpers
 # ---------------------------------------------------------------------------
 
-def _item_to_word_info(item: Any) -> dict[str, Any]:
-    """Normalize an LLMWordItem into the plain word-info dict used downstream."""
-    return {
-        "text": getattr(item, "target_text", None) or item.text,
-        "translation": getattr(item, "source_text", None) or item.translation,
-        "pos": getattr(item, "pos", None),
-        "phonetic": getattr(item, "phonetic", None),
-        "lemma": getattr(item, "lemma", None),
-        "context_phrase": getattr(item, "context_phrase", None),
-    }
-
-
 async def _extract_words_from_text(
     db: Session,
     user: User,
@@ -69,16 +57,15 @@ async def _extract_words_from_text(
     nlp_service.enrich_vocabulary(extracted.items, language_code=target_lang, context=text)
     words: list[Word] = []
     for item in extracted.items:
-        info = _item_to_word_info(item)
         word = get_or_create_word(
             db,
             language_code=target_lang,
-            text=info["text"],
-            lemma=info["lemma"],
-            pos=info["pos"],
-            phonetic=info["phonetic"],
-            translation=info["translation"],
-            context_phrase=info["context_phrase"],
+            text=item.text,
+            lemma=item.lemma,
+            pos=item.pos,
+            phonetic=item.phonetic,
+            translation=item.translation,
+            context_phrase=item.context_phrase,
         )
         get_or_create_user_word_stats(db, user_id=user.id, word_id=word.id)
         words.append(word)
@@ -308,7 +295,7 @@ async def _enrich_tokens(
         username=user.username,
         data={"output": json.dumps(extracted.model_dump(), ensure_ascii=False)},
     )
-    return {info["text"].lower().strip(): info for info in map(_item_to_word_info, extracted.items)}
+    return {item.text.lower().strip(): item.model_dump() for item in extracted.items}
 
 
 @router.post(
