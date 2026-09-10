@@ -34,10 +34,9 @@ def strip_glosses(adapted_text: str) -> str:
         flags=re.DOTALL,
     )
 
-    # 2. Remove parenthetical glosses placed before trailing punctuation:
-    # `word (gloss),` -> `word,`
-    # Pattern: space followed by (gloss) and then immediate punctuation
-    clean = re.sub(r"\s+\([^)]*\)(?=[.,!?;:…—–])", "", clean)
+    # 2. Remove parenthetical glosses placed before trailing punctuation (with optional whitespace):
+    # `word (gloss),` -> `word,` or `word (gloss) ,` -> `word,`
+    clean = re.sub(r"\s+\([^)]*\)(?=\s*[.,!?;:…—–])", "", clean)
 
     # 3. Remove remaining parenthetical glosses:
     # `word (gloss) next` -> `word next`
@@ -46,7 +45,14 @@ def strip_glosses(adapted_text: str) -> str:
     # 4. Remove leading glosses if any: `(gloss) next` -> `next`
     clean = re.sub(r"^\([^)]*\)\s*", "", clean)
 
-    # 5. Clean up any accidental double spaces on non-newline boundaries
+    # 5. Remove slash annotations (Rule 17 implied additions if rendered outside parentheses)
+    clean = re.sub(r"\s+/[^/]+/(?=\s*[.,!?;:…—–])", "", clean)
+    clean = re.sub(r"\s+/[^/]+/", "", clean)
+
+    # 6. Clean up any accidental whitespace before punctuation: `word ?` -> `word?`
+    clean = re.sub(r"\s+([.,!?;:…—–])", r"\1", clean)
+
+    # 7. Clean up any accidental double spaces on non-newline boundaries
     clean = re.sub(r"[^\S\r\n]{2,}", " ", clean)
 
     return clean.strip()
@@ -288,9 +294,19 @@ def parse_and_validate_adaptation(raw_llm_json: str, original_text: str) -> Ilya
         # Check and enforce Ui == strip_glosses(Ai)
         is_faithful, _ = validate_unadapted_fidelity(excerpt.adapted_text, excerpt.raw_text)
         if not is_faithful:
-            logger.warning(
-                f"LLM excerpt {excerpt.index} had fidelity drift; auto-reconciling raw_text from stripped adapted_text"
-            )
-            excerpt.raw_text = strip_glosses(excerpt.adapted_text)
+            if len(parsed.excerpts) == 1 and original_text:
+                orig_faithful, _ = validate_unadapted_fidelity(excerpt.adapted_text, original_text.strip())
+                if orig_faithful:
+                    excerpt.raw_text = original_text.strip()
+                else:
+                    logger.warning(
+                        f"LLM excerpt {excerpt.index} had fidelity drift; auto-reconciling raw_text from stripped adapted_text"
+                    )
+                    excerpt.raw_text = strip_glosses(excerpt.adapted_text)
+            else:
+                logger.warning(
+                    f"LLM excerpt {excerpt.index} had fidelity drift; auto-reconciling raw_text from stripped adapted_text"
+                )
+                excerpt.raw_text = strip_glosses(excerpt.adapted_text)
 
     return parsed

@@ -1,0 +1,151 @@
+{
+  "excerpts": [
+    {
+      "index": 1,
+      "adapted_text": "De vogels (птицы; vogel, de) vonden (сочли; vinden) het nu toch ook stillekesaan (постепенно, мало-помалу) genoeg (достаточным: «достаточно»). Ze besloten (они решили; besluiten) een koning (короля; koning, de) te kiezen (выбрать; kiezen), die moest (который должен был; moeten) dan maar (тогда уж) een einde maken aan (положить конец; einde, het — конец; maken — делать) al die twisten (всем этим распрям, ссорам; twist, de). Een koning, die heeft macht (власть; macht, de), die geeft bevelen (отдает приказы; bevel, het; geven — давать) en de anderen moeten luisteren (слушаться).\nMaar hoe kies ge (как выбрать: «как выбираешь ты»; ge = je) een koning? Dat was niet zo moeilijk (сложно, трудно). De vogel die het hoogst (выше всего; hoog — высокий) kon vliegen (могла летать; kunnen; vliegen) werd (стала; worden) koning. Wie anders (кто же еще: «кто иначе»)?",
+      "raw_text": "De vogels vonden het nu toch ook stillekesaan genoeg. Ze besloten een koning te kiezen, die moest dan maar een einde maken aan al die twisten. Een koning, die heeft macht, die geeft bevelen en de anderen moeten luisteren.\nMaar hoe kies ge een koning? Dat was niet zo moeilijk. De vogel die het hoogst kon vliegen werd koning. Wie anders?",
+      "vocabulary_extracted": [
+        {
+          "language_code": null,
+          "text": "vonden",
+          "lemma": "vinden",
+          "pos": "VERB",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "находили",
+          "literary_translation": "сочли, посчитали",
+          "gender": null,
+          "is_irregular": true
+        },
+        {
+          "language_code": null,
+          "text": "stillekesaan",
+          "lemma": "stillekesaan",
+          "pos": "ADV",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "потихоньку",
+          "literary_translation": "постепенно, мало-помалу",
+          "gender": null,
+          "is_irregular": false
+        },
+        {
+          "language_code": null,
+          "text": "besloten",
+          "lemma": "besluiten",
+          "pos": "VERB",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "решили",
+          "literary_translation": "решили",
+          "gender": null,
+          "is_irregular": true
+        },
+        {
+          "language_code": null,
+          "text": "kiezen",
+          "lemma": "kiezen",
+          "pos": "VERB",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "выбирать",
+          "literary_translation": "выбрать",
+          "gender": null,
+          "is_irregular": true
+        },
+        {
+          "language_code": null,
+          "text": "een einde maken aan",
+          "lemma": "een einde maken aan",
+          "pos": "VERB",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "делать конец к",
+          "literary_translation": "положить конец",
+          "gender": null,
+          "is_irregular": false
+        },
+        {
+          "language_code": null,
+          "text": "twisten",
+          "lemma": "twist",
+          "pos": "NOUN",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "ссоры",
+          "literary_translation": "распри, ссоры",
+          "gender": "de",
+          "is_irregular": false
+        },
+        {
+          "language_code": null,
+          "text": "bevelen",
+          "lemma": "bevel",
+          "pos": "NOUN",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "приказы",
+          "literary_translation": "приказы",
+          "gender": "het",
+          "is_irregular": false
+        },
+        {
+          "language_code": null,
+          "text": "macht",
+          "lemma": "macht",
+          "pos": "NOUN",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "власть",
+          "literary_translation": "власть",
+          "gender": "de",
+          "is_irregular": false
+        },
+        {
+          "language_code": null,
+          "text": "luisteren",
+          "lemma": "luisteren",
+          "pos": "VERB",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "слушать",
+          "literary_translation": "слушаться",
+          "gender": null,
+          "is_irregular": false
+        },
+        {
+          "language_code": null,
+          "text": "werd",
+          "lemma": "worden",
+          "pos": "VERB",
+          "phonetic": null,
+          "translation": null,
+          "context_phrase": null,
+          "audio_url": null,
+          "literal_translation": "становился",
+          "literary_translation": "стал",
+          "gender": null,
+          "is_irregular": true
+        }
+      ]
+    }
+  ]
+}
