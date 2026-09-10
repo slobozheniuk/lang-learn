@@ -69,6 +69,7 @@ def create_word(db: Session, word_in: WordCreate) -> Word:
         text=word_in.text.strip(),
         lemma=word_in.lemma.strip() if word_in.lemma else None,
         pos=word_in.pos.strip() if word_in.pos else None,
+        gender=word_in.gender.strip() if word_in.gender else None,
         phonetic=word_in.phonetic.strip() if word_in.phonetic else None,
         translation=word_in.translation.strip() if word_in.translation else None,
         context_phrase=word_in.context_phrase.strip() if word_in.context_phrase else None,
@@ -89,6 +90,7 @@ def get_or_create_word(
     text: str,
     lemma: str | None = None,
     pos: str | None = None,
+    gender: str | None = None,
     phonetic: str | None = None,
     translation: str | None = None,
     context_phrase: str | None = None,
@@ -120,6 +122,9 @@ def get_or_create_word(
         if pos and not existing.pos:
             existing.pos = pos.strip()
             updated = True
+        if gender and not existing.gender:
+            existing.gender = gender.strip()
+            updated = True
         if context_phrase and not existing.context_phrase:
             existing.context_phrase = context_phrase.strip()
             updated = True
@@ -137,6 +142,7 @@ def get_or_create_word(
         text=canonical_lemma,      # store lemma as display text
         lemma=canonical_lemma,
         pos=pos.strip() if pos else None,
+        gender=gender.strip() if gender else None,
         phonetic=phonetic.strip() if phonetic else None,
         translation=translation.strip() if translation else None,
         context_phrase=context_phrase.strip() if context_phrase else None,

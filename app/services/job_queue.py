@@ -208,6 +208,7 @@ class JobQueueService:
                     text=item.text,
                     translation=item.translation,
                     pos=item.pos,
+                    gender=item.gender,
                     phonetic=item.phonetic,
                     lemma=item.lemma,
                     context_phrase=item.context_phrase,

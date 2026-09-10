@@ -50,3 +50,58 @@ def test_user_word_stats_unique_constraint(
     assert stats2.id == stats1.id
     assert stats2.repetition_number == 2
     assert stats2.interval_days == 6.0
+
+
+def test_word_gender_persistence_and_enrichment(db_session: Session):
+    from app.crud.word import create_word, get_or_create_word
+    from app.schemas.word import WordCreate
+
+    # 1. create_word with gender
+    w1 = create_word(
+        db_session,
+        WordCreate(
+            language_code="nl",
+            text="koning",
+            lemma="koning",
+            pos="noun",
+            gender="de",
+            translation="король",
+        ),
+    )
+    assert w1.id is not None
+    assert w1.gender == "de"
+
+    # 2. get_or_create_word with gender
+    w2 = get_or_create_word(
+        db_session,
+        language_code="nl",
+        text="huis",
+        lemma="huis",
+        pos="noun",
+        gender="het",
+        translation="дом",
+    )
+    assert w2.id is not None
+    assert w2.gender == "het"
+
+    # 3. get_or_create_word enriching an existing word lacking gender
+    w3_initial = get_or_create_word(
+        db_session,
+        language_code="nl",
+        text="boek",
+        lemma="boek",
+        pos="noun",
+        translation="книга",
+    )
+    assert w3_initial.gender is None
+
+    w3_enriched = get_or_create_word(
+        db_session,
+        language_code="nl",
+        text="boek",
+        lemma="boek",
+        gender="het",
+    )
+    assert w3_enriched.id == w3_initial.id
+    assert w3_enriched.gender == "het"
+

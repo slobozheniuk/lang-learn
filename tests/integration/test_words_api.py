@@ -30,6 +30,29 @@ def test_create_word_success(client: TestClient, auth_headers: dict[str, str]):
     assert data["id"] is not None
 
 
+def test_create_word_with_gender_api(client: TestClient, auth_headers: dict[str, str]):
+    payload = {
+        "language_code": "nl",
+        "text": "kat",
+        "lemma": "kat",
+        "pos": "noun",
+        "gender": "de",
+        "translation": "кошка",
+    }
+    response = client.post("/api/v1/words/", json=payload, headers=auth_headers)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["text"] == "kat"
+    assert data["gender"] == "de"
+    assert data["translation"] == "кошка"
+
+    # Verify retrieval via GET /words/{id}
+    word_id = data["id"]
+    get_res = client.get(f"/api/v1/words/{word_id}", headers=auth_headers)
+    assert get_res.status_code == 200
+    assert get_res.json()["gender"] == "de"
+
+
 def test_create_word_invalid_language(client: TestClient, auth_headers: dict[str, str]):
     payload = {
         "language_code": "xx",

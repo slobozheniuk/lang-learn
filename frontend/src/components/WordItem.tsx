@@ -74,6 +74,7 @@ export const WordItem: React.FC<WordItemProps> = ({
           <span className="word-text-bold">
             <strong>{word.text}</strong>
           </span>
+          {word.gender && <span className="word-gender-tag">{word.gender}</span>}
           {word.pos && <span className="word-pos-tag">{word.pos}</span>}
           {word.phonetic && <span className="word-phonetic-tag">[{word.phonetic}]</span>}
         </div>

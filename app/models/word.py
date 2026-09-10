@@ -23,6 +23,7 @@ class Word(Base, TimestampMixin):
     text: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     lemma: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pos: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Part of speech
+    gender: Mapped[str | None] = mapped_column(String(20), nullable=True)  # Grammatical gender (e.g. 'de', 'het', 'm', 'f', 'n')
     phonetic: Mapped[str | None] = mapped_column(String(100), nullable=True)  # IPA
     translation: Mapped[str | None] = mapped_column(Text, nullable=True)
     context_phrase: Mapped[str | None] = mapped_column(Text, nullable=True)

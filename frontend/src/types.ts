@@ -44,6 +44,7 @@ export interface Word {
   translation: string;
   phonetic?: string | null;
   pos?: string | null;
+  gender?: string | null;
   context_phrase?: string | null;
   language_code: string;
   audio_url?: string | null;
@@ -60,6 +61,7 @@ export interface FlashcardItem {
   translation: string;
   phonetic?: string | null;
   pos?: string | null;
+  gender?: string | null;
   context_phrase?: string | null;
   language_code?: string;
   audio_url?: string | null;

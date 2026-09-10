@@ -58,6 +58,7 @@ class WordService:
             text=word.text,
             lemma=word.lemma,
             pos=word.pos,
+            gender=word.gender,
             phonetic=word.phonetic,
             translation=word.translation,
             context_phrase=word.context_phrase,
@@ -81,6 +82,7 @@ class WordService:
                     text=word.text,
                     lemma=word.lemma,
                     pos=word.pos,
+                    gender=word.gender,
                     phonetic=word.phonetic,
                     translation=word.translation,
                     context_phrase=word.context_phrase,
@@ -97,6 +99,10 @@ class WordService:
         existing = get_word_by_text_and_lang(
             db, text=word_in.text, language_code=word_in.language_code
         )
+        if existing and word_in.gender and not existing.gender:
+            existing.gender = word_in.gender.strip()
+            db.commit()
+            db.refresh(existing)
         word = existing or crud_create_word(db, word_in)
 
         if user_id:
@@ -110,7 +116,6 @@ class WordService:
         word = get_word_by_id(db, word_id)
         if not word:
             return None
-        stats_read = None
         if user_id:
             stats = db.scalar(
                 select(UserWordStats).where(
@@ -120,22 +125,8 @@ class WordService:
             )
             if not stats:
                 return None
-            stats_read = UserWordStatsRead.model_validate(stats)
 
-        return WordRead(
-            id=word.id,
-            language_code=word.language_code,
-            text=word.text,
-            lemma=word.lemma,
-            pos=word.pos,
-            phonetic=word.phonetic,
-            translation=word.translation,
-            context_phrase=word.context_phrase,
-            audio_url=word.audio_url,
-            created_at=word.created_at,
-            updated_at=word.updated_at,
-            user_stats=stats_read,
-        )
+        return WordService.to_read(word, user_id=user_id, db=db)
 
     @staticmethod
     def list_words(
