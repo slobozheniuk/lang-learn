@@ -1,38 +1,18 @@
-import pytest
+"""Multi-user data isolation: users must never see, modify, or delete each other's data."""
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.auth.security import create_access_token, hash_password
 from app.crud.lesson import create_lesson
-from app.crud.user import create_user
-from app.models.learning_profile import LearningProfile
 from app.models.user import User
 from app.schemas.lesson import LessonCreate
-from app.schemas.user import UserCreate
-
-
-def create_authenticated_user(
-    db: Session,
-    username: str,
-    source_lang: str = "ru",
-    target_lang: str = "en",
-) -> tuple[User, dict[str, str]]:
-    user_in = UserCreate(
-        username=username,
-        password="testpassword123",
-        default_source_lang=source_lang,
-        default_target_lang=target_lang,
-    )
-    user = create_user(db, user_in, hashed_password=hash_password("testpassword123"))
-
-    token = create_access_token(data={"sub": str(user.id), "username": user.username})
-    headers = {"Authorization": f"Bearer {token}"}
-    return user, headers
+from tests.conftest import auth_headers_for, make_user
 
 
 def test_strict_multi_user_isolation(client: TestClient, db_session: Session):
     # 1. User A registers and creates words, lessons, reviews
-    user_a, headers_a = create_authenticated_user(db_session, "user_alpha", "ru", "en")
+    user_a = make_user(db_session, "user_alpha", source_lang="ru", target_lang="en")
+    headers_a = auth_headers_for(user_a)
 
     # User A creates a word via POST /api/v1/words/
     res_w1 = client.post(
@@ -68,7 +48,8 @@ def test_strict_multi_user_isolation(client: TestClient, db_session: Session):
     assert len(res_lessons_a.json()) == 1
 
     # 2. User B registers
-    user_b, headers_b = create_authenticated_user(db_session, "user_beta", "ru", "en")
+    user_b = make_user(db_session, "user_beta", source_lang="ru", target_lang="en")
+    headers_b = auth_headers_for(user_b)
 
     # User B lists words -> must see 0 words
     res_words_b = client.get("/api/v1/words/", headers=headers_b)
@@ -106,9 +87,9 @@ def test_strict_multi_user_isolation(client: TestClient, db_session: Session):
     assert client.get(f"/api/v1/lessons/{lesson_a.id}", headers=headers_a).status_code == 200
 
 
-
 def test_active_profile_isolation(client: TestClient, db_session: Session):
-    user, headers = create_authenticated_user(db_session, "profile_user", "ru", "en")
+    user = make_user(db_session, "profile_user", source_lang="ru", target_lang="en")
+    headers = auth_headers_for(user)
 
     # Add an English word
     client.post(

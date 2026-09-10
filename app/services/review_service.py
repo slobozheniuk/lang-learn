@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 from app.crud.stats import get_due_words, get_user_word_stats, upsert_user_word_stats
 from app.crud.word import get_word_by_id
 from app.schemas.review import DueWordItem, ReviewResultResponse, ReviewSubmission
-from app.schemas.word import UserWordStatsRead, WordRead
+from app.schemas.word import UserWordStatsRead
 from app.srs.engine import SM2Engine, SRSEngine
 from app.srs.models import CardState, parse_rating
+from app.services.word_service import WordService
 
 logger = logging.getLogger("app.services.review")
 
@@ -33,27 +34,17 @@ class ReviewService:
             current_time=current_time,
         )
 
+        words = [word for word, _ in due_items]
+        word_reads = WordService.to_read_many(words, user_id, db)
+        by_id = {w.id: w for w in word_reads}
+
         results: list[DueWordItem] = []
         for word, stats in due_items:
             stats_read = UserWordStatsRead.model_validate(stats) if stats else None
-            is_new_card = stats is None or getattr(stats, "repetition_number", 0) == 0 or getattr(stats, "last_reviewed_at", None) is None
-            word_read = WordRead(
-                id=word.id,
-                language_code=word.language_code,
-                text=word.text,
-                lemma=word.lemma,
-                pos=word.pos,
-                phonetic=word.phonetic,
-                translation=word.translation,
-                context_phrase=word.context_phrase,
-                audio_url=word.audio_url,
-                created_at=word.created_at,
-                updated_at=word.updated_at,
-                user_stats=stats_read,
-            )
+            is_new_card = stats is None or stats.repetition_number == 0 or stats.last_reviewed_at is None
             results.append(
                 DueWordItem(
-                    word=word_read,
+                    word=by_id[word.id],
                     stats=stats_read,
                     is_new=is_new_card,
                 )
@@ -90,8 +81,8 @@ class ReviewService:
             )
 
         stats = get_user_word_stats(db, user_id=user_id, word_id=word.id)
-        if stats:
-            current_state = CardState(
+        current_state = (
+            CardState(
                 repetition_number=stats.repetition_number,
                 interval_days=stats.interval_days,
                 ease_factor=stats.ease_factor,
@@ -100,8 +91,9 @@ class ReviewService:
                 recall_count=stats.recall_count,
                 fail_count=stats.fail_count,
             )
-        else:
-            current_state = CardState()
+            if stats
+            else CardState()
+        )
 
         review_result = self.srs_engine.calculate_next_review(
             current_state=current_state,

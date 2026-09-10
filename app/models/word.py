@@ -8,7 +8,6 @@ if TYPE_CHECKING:
     from app.models.language import Language
     from app.models.lesson_word import LessonWord
     from app.models.user_word_stats import UserWordStats
-    from app.models.word_association import WordAssociation
 
 
 class Word(Base, TimestampMixin):
@@ -32,18 +31,6 @@ class Word(Base, TimestampMixin):
     language: Mapped["Language"] = relationship("Language", back_populates="words")
     user_stats: Mapped[list["UserWordStats"]] = relationship(
         "UserWordStats", back_populates="word", cascade="all, delete-orphan"
-    )
-    source_associations: Mapped[list["WordAssociation"]] = relationship(
-        "WordAssociation",
-        foreign_keys="WordAssociation.source_word_id",
-        back_populates="source_word",
-        cascade="all, delete-orphan",
-    )
-    target_associations: Mapped[list["WordAssociation"]] = relationship(
-        "WordAssociation",
-        foreign_keys="WordAssociation.target_word_id",
-        back_populates="target_word",
-        cascade="all, delete-orphan",
     )
     lesson_words: Mapped[list["LessonWord"]] = relationship(
         "LessonWord", back_populates="word", cascade="all, delete-orphan"

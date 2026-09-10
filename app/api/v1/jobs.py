@@ -1,13 +1,14 @@
+"""Background job endpoints: submission and status polling."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.v1._shared import lesson_to_read
 from app.auth.dependencies import get_current_user
 from app.crud.job import get_job
 from app.database import get_db
 from app.models.user import User
 from app.schemas.job import JobRead, TextSubmissionRequest, TextSubmissionResponse
-from app.schemas.lesson import LessonRead
-from app.schemas.word import WordRead
 from app.services.job_queue import job_queue_service
 from app.services.word_service import WordService
 
@@ -26,10 +27,7 @@ async def submit_job(
     current_user: User = Depends(get_current_user),
 ) -> TextSubmissionResponse:
     if not request.text.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Text cannot be empty.",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Text cannot be empty.")
 
     job, lesson, words = await job_queue_service.submit_text(
         db=db,
@@ -40,31 +38,12 @@ async def submit_job(
         wait=request.wait,
     )
 
-    lesson_read = None
-    if lesson:
-        lesson_words = [WordService.to_read(w, user_id=current_user.id, db=db) for w in words]
-        lesson_read = LessonRead(
-            id=lesson.id,
-            user_id=lesson.user_id,
-            source_lang=lesson.source_lang,
-            target_lang=lesson.target_lang,
-            title=lesson.title,
-            raw_input=lesson.raw_input,
-            input_type=lesson.input_type,
-            status=lesson.status,
-            created_at=lesson.created_at,
-            updated_at=lesson.updated_at,
-            words=lesson_words,
-        )
-
-    words_read = [WordService.to_read(w, user_id=current_user.id, db=db) for w in words]
-
     return TextSubmissionResponse(
         job_id=job.id,
         status=job.status,
         is_lesson=lesson is not None,
-        lesson=lesson_read,
-        words=words_read,
+        lesson=lesson_to_read(lesson, current_user.id, db) if lesson else None,
+        words=WordService.to_read_many(words, current_user.id, db),
         error_message=job.error_message,
     )
 

@@ -1,18 +1,23 @@
+"""Word endpoints: text submission (flashcards or reading lessons) and word CRUD."""
+
 import json
 import logging
+import time
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import get_current_user, get_optional_current_user
-from app.crud.job import create_job, update_job
+from app.api.v1._shared import (
+    LESSON_MIN_WORDS,
+    create_reading_lesson_with_job,
+    lesson_to_read,
+)
+from app.auth.dependencies import get_current_user
 from app.crud.language import get_language_by_code
-from app.crud.lesson import add_word_to_lesson, create_lesson, get_lesson_by_id
+from app.crud.lesson import get_lesson_by_id
 from app.database import SessionLocal, get_db
 from app.models.user import User
 from app.schemas.job import TextSubmissionRequest, TextSubmissionResponse
-from app.schemas.lesson import LessonCreate, LessonRead
 from app.schemas.word import WordCreate, WordRead
-import time
 from app.services.job_queue import count_sentences, job_queue_service
 from app.services.journey_logger import log_journey_event
 from app.services.nlp import nlp_service
@@ -25,7 +30,6 @@ router = APIRouter()
 async def _prepare_lesson_in_background(
     lesson_id: int,
     text: str,
-    source_lang: str,
     target_lang: str,
     user_id: int | None = None,
     username: str | None = None,
@@ -77,104 +81,42 @@ async def submit_text(
     current_user: User = Depends(get_current_user),
 ) -> TextSubmissionResponse:
     if not request.text.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Text cannot be empty.",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Text cannot be empty.")
 
-    active_profile = current_user.get_active_profile()
-    source_lang = (
-        request.source_lang
-        or (active_profile.source_language if active_profile else "en")
-    )
-    target_lang = (
-        request.target_lang
-        or (active_profile.target_language if active_profile else "en")
-    )
+    profile = current_user.get_active_profile()
+    source_lang = request.source_lang or (profile.source_language if profile else "en")
+    target_lang = request.target_lang or (profile.target_language if profile else "en")
 
-    words_in_text = request.text.strip().split()
-    word_count = len(words_in_text)
+    word_count = len(request.text.strip().split())
     sentence_count = count_sentences(request.text)
-    should_create_lesson = word_count >= 5
 
-    if should_create_lesson:
-        snippet = " ".join(words_in_text[:4])
-        if len(words_in_text) > 4:
-            snippet += "..."
-        lesson_title = f"Lesson: {snippet}"
-        if len(lesson_title) > 250:
-            lesson_title = lesson_title[:250]
-
-        lesson_in = LessonCreate(
-            source_lang=source_lang,
-            target_lang=target_lang,
-            title=lesson_title,
-            raw_input=request.text,
-            input_type="reading",
-            is_completed=False,
-        )
-        created_lesson = create_lesson(db, user_id=current_user.id, lesson_in=lesson_in, status="processing")
-
-        job = create_job(
-            db=db,
-            user_id=current_user.id,
-            input_text=request.text,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            type="lesson_generation",
-            lesson_id=created_lesson.id,
-        )
-        update_job(
+    # Long texts (>= 5 words) become reading lessons chunked in the background
+    if word_count >= LESSON_MIN_WORDS:
+        lesson, job = create_reading_lesson_with_job(
             db,
-            job_id=job.id,
-            status="completed",
-            lesson_id=created_lesson.id,
-            result_json=json.dumps({
-                "items_count": 0,
-                "is_lesson": True,
-                "is_multi_sentence": sentence_count > 1,
-                "can_create_lesson": True,
-                "lesson_id": created_lesson.id,
-                "word_ids": [],
-            }),
+            user=current_user,
+            text=request.text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            status_after_submit="processing",
         )
-
-        # Log journey event for lesson submission
         log_journey_event(
-            journey_id=f"lesson_{created_lesson.id}",
+            journey_id=f"lesson_{lesson.id}",
             journey_type="lesson_creation",
             stage="text_submitted",
             action="Lesson Text Submitted",
             user_id=current_user.id,
             username=current_user.username,
-            data={"text": request.text, "word_count": word_count, "lesson_id": created_lesson.id},
+            data={"text": request.text, "word_count": word_count, "lesson_id": lesson.id},
         )
-
-        # Queue background chunking
         background_tasks.add_task(
             _prepare_lesson_in_background,
-            lesson_id=created_lesson.id,
+            lesson_id=lesson.id,
             text=request.text,
-            source_lang=source_lang,
             target_lang=target_lang,
             user_id=current_user.id,
             username=current_user.username,
         )
-
-        lesson_read = LessonRead(
-            id=created_lesson.id,
-            user_id=created_lesson.user_id,
-            source_lang=created_lesson.source_lang,
-            target_lang=created_lesson.target_lang,
-            title=created_lesson.title,
-            raw_input=created_lesson.raw_input,
-            input_type=created_lesson.input_type,
-            status=created_lesson.status,
-            created_at=created_lesson.created_at,
-            updated_at=created_lesson.updated_at,
-            words=[],
-        )
-
         return TextSubmissionResponse(
             job_id=job.id,
             status=job.status,
@@ -184,12 +126,12 @@ async def submit_text(
             word_count=word_count,
             can_create_lesson=True,
             lesson_in_progress=True,
-            lesson=lesson_read,
+            lesson=lesson_to_read(lesson, current_user.id, db),
             words=[],
             error_message=None,
         )
 
-    # Not eligible for lesson creation (< 5 words): extract vocabulary words for SRS
+    # Short texts: extract vocabulary words straight into the user's SRS deck
     journey_id = f"word_submit_{current_user.id}_{int(time.time() * 1000)}"
     log_journey_event(
         journey_id=journey_id,
@@ -209,11 +151,6 @@ async def submit_text(
         target_lang=target_lang,
         wait=request.wait,
     )
-
-    words_read = [
-        WordService.to_read(w, user_id=current_user.id, db=db)
-        for w in words
-    ]
 
     log_journey_event(
         journey_id=journey_id,
@@ -235,7 +172,7 @@ async def submit_text(
         can_create_lesson=False,
         lesson_in_progress=False,
         lesson=None,
-        words=words_read,
+        words=WordService.to_read_many(words, current_user.id, db),
         error_message=job.error_message,
     )
 
@@ -251,9 +188,7 @@ def create_word(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> WordRead:
-    # Ensure language exists
-    lang = get_language_by_code(db, word_in.language_code)
-    if not lang:
+    if not get_language_by_code(db, word_in.language_code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Language '{word_in.language_code}' does not exist.",
@@ -267,9 +202,8 @@ def create_word(
             detail="Failed to retrieve created word",
         )
 
-    journey_id = f"word_create_{current_user.id}_{word.id}"
     log_journey_event(
-        journey_id=journey_id,
+        journey_id=f"word_create_{current_user.id}_{word.id}",
         journey_type="word_adding",
         stage="word_created",
         action="Word Created Manually",
@@ -277,7 +211,6 @@ def create_word(
         username=current_user.username,
         data={"word": word_in.text, "translation": word_in.translation, "language": word_in.language_code},
     )
-
     return word_read
 
 
@@ -290,11 +223,8 @@ def list_words(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[WordRead]:
-    active_profile = current_user.get_active_profile()
-    lang = (
-        language_code
-        or (active_profile.target_language if active_profile else None)
-    )
+    profile = current_user.get_active_profile()
+    lang = language_code or (profile.target_language if profile else None)
     return WordService.list_words(
         db,
         language_code=lang,
@@ -326,8 +256,7 @@ def delete_word(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    deleted = WordService.delete_word(db, word_id, user_id=current_user.id)
-    if not deleted:
+    if not WordService.delete_word(db, word_id, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Word with id {word_id} not found",

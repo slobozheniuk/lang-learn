@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.v1._shared import update_current_user
 from app.auth.dependencies import get_current_user
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.crud.language import get_language_by_code, seed_default_languages
@@ -12,7 +13,6 @@ from app.crud.user import (
     create_user,
     get_user_by_username,
     get_user_by_username_or_email,
-    update_user,
 )
 from app.database import get_db
 from app.models.learning_profile import LearningProfile
@@ -150,14 +150,6 @@ def update_me(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UserRead:
-    if user_in.username and user_in.username.strip() != current_user.username:
-        existing = get_user_by_username(db, user_in.username)
-        if existing and existing.id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A user with this username already exists.",
-            )
-
-    updated = update_user(db, current_user, user_in)
+    updated = update_current_user(db, current_user, user_in)
     logger.info(f"User profile updated: user_id={updated.id}, username='{updated.username}'")
-    return UserRead.model_validate(updated)
+    return updated
