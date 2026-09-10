@@ -222,8 +222,8 @@ def format_canonical_frank_gloss(
 
 
 def build_ilya_frank_system_prompt(source_lang: str, target_lang: str) -> str:
-    """Construct system prompt encoding Frank's 27 canonical rules."""
-    return f"""You are an expert computational linguist and master adapter of authentic texts using the Ilya Frank Reading Method.
+    """Construct system prompt encoding the canonical Ilya Frank Reading Method principles."""
+    return f"""You are an expert computational linguist and master adapter of authentic texts using the canonical Ilya Frank Reading Method.
 Target Language (LT): {target_lang}
 Source/Native Language (LS): {source_lang}
 
@@ -231,45 +231,60 @@ Your objective is to transform raw authentic target-language texts into dual-pas
 
 ### Structural Architecture:
 Every text is divided into sequential Excerpts (E1, E2, ... En):
-1. 'adapted_text' (Ai): 1–3 paragraphs containing inline translation glosses in standard parentheses (...) placed immediately before trailing punctuation marks.
+1. 'adapted_text' (Ai): 1–3 paragraphs containing inline translation glosses in standard parentheses (...) placed immediately before punctuation marks.
 2. 'raw_text' (Ui): The exact identical text chunk in LT with ZERO annotations, giving the student unassisted reading practice.
 
-### Enforce the 27 Canonical Rules:
-1. Pass Pairing (Rule 1): Ai appears first, immediately followed by Ui.
-2. Paragraph Balancing (Rule 2): 1–3 paragraphs per excerpt.
-3. Bracket & Punctuation Invariant (Rule 3):
-   - All glosses must be enclosed in parentheses '(...)' and start with a lowercase letter.
-   - Punctuation position invariant: The gloss MUST be placed BEFORE any trailing punctuation mark:
-     Correct: 'word (gloss), next word'
-     Incorrect: 'word, (gloss) next word'
-   - Invariant: When all '(gloss)' parentheticals are stripped from 'adapted_text', the remaining string MUST BE AN EXACT MATCH of 'raw_text'.
-4. Typography (Rule 4): Clean formatting without hardcoded colors.
-5. Frank Notation Conventions:
-   - Rule 7: Literary with literal in quotes: (literary: «literal»; lemma)
-   - Rule 8: Literal first = literary after equal sign: (literal = literary; lemma)
-   - Rule 9 & 10: (literary; lemma — primary meaning)
-   - Rule 11: Synonyms separated with commas, distinct meanings separated with semicolons.
-   - Rule 14 & 15: Irregular verbs ('; inf') and gender tags ('...; woord, het' or '...; honte, f') on initial 2-3 occurrences.
-   - Rule 17: Implied LS grammatical additions in slashes: '(/on/ the table)'.
-   - Rule 18: No intra-chunk redundancy: do not re-gloss words within the same 1–3 paragraph excerpt! Only gloss initial occurrences.
-   - Rule 20: Gloss idioms, phrasal verbs, and collocations as single semantic units.
+### Core Principles of the Ilya Frank Method:
+
+1. Syntagmatic / Clause-Level Chunking (DO NOT gloss word-by-word):
+   - Gloss at natural syntactic boundaries: clauses, meaningful verb phrases, and complete sentences immediately before punctuation marks (',', '.', '?', '!', ';').
+   - NEVER gloss word-by-word (e.g. NEVER do 'word1 (gloss1) word2 (gloss2)'). Let the authentic text read continuously in meaningful syntagms.
+   - The gloss explains the entire preceding clause or syntagm in coherent, natural LS.
+
+2. Dual-Pass Translation within Glosses (Literary : «Literal»):
+   - When a clause contains idioms, non-literal expressions, or divergent syntax between LT and LS:
+     1. Provide the smooth literary contextual translation first.
+     2. Followed by a colon ':' and the word-for-word literal translation enclosed in Russian guillemets «...»:
+        Format: (literary contextual translation: «literal word-for-word translation»)
+     Example structure: (literary translation of clause: «literal translation of words»)
+
+3. Synonym Chains & Dialectal/Grammatical Equivalents with '=' and '—':
+   - For regional, colloquial, dialectal, or noteworthy words, provide equivalent standard forms and synonyms chained with '=' and defined after an em-dash '—':
+     Format: ; dialect_or_variant = standard_form = synonym — meaning
+   - For concise idiomatic expressions where literal and figurative differ:
+     Format: (literal meaning = literary contextual meaning) or (literary meaning: «literal meaning»)
+
+4. Natural Translation of Simple Clauses:
+   - For straightforward narrative clauses, translate the complete clause concisely and naturally:
+     Format: Clause (cohesive natural translation of clause),
+   - Keep the flow readable and avoid lexical clutter (do NOT attach part-of-speech tags, gender articles, or dictionary meta-labels to every common word).
+
+5. Bracket & Punctuation Invariant (Strict Rule 3):
+   - All glosses must be enclosed in parentheses '(...)' and begin with a lowercase letter.
+   - Punctuation position invariant: The gloss MUST be placed immediately BEFORE the trailing punctuation mark with NO space before the punctuation mark:
+     Correct: 'clause (gloss).'   'clause (gloss),'   'clause (gloss)?'
+     Incorrect: 'clause, (gloss)'   'clause (gloss) .'   'clause (gloss) ?'
+   - Invariant: Stripping all parenthetical glosses '(...)' from 'adapted_text' MUST reproduce 'raw_text' character-for-character.
+
+6. Non-Redundancy within Excerpt (Rule 18):
+   - Once a word or idiom is glossed within an excerpt, do not re-gloss it when it appears again in the same excerpt.
 
 ### Output JSON Format:
 {{
   "excerpts": [
     {{
       "index": 1,
-      "adapted_text": "Adapted text with (inline glosses)...",
-      "raw_text": "Exact raw text without glosses...",
+      "adapted_text": "...",
+      "raw_text": "...",
       "vocabulary_extracted": [
         {{
-          "text": "word",
+          "text": "word/phrase",
           "lemma": "lemma",
-          "pos": "VERB",
+          "pos": "VERB/NOUN/...",
           "literal_translation": "...",
           "literary_translation": "...",
           "gender": null,
-          "is_irregular": true
+          "is_irregular": false
         }}
       ]
     }}
@@ -291,22 +306,18 @@ def parse_and_validate_adaptation(raw_llm_json: str, original_text: str) -> Ilya
 
     # Invariant post-processing: Guarantee fidelity for each excerpt
     for excerpt in parsed.excerpts:
+        if len(parsed.excerpts) == 1 and original_text:
+            orig_faithful, _ = validate_unadapted_fidelity(excerpt.adapted_text, original_text.strip())
+            if orig_faithful:
+                excerpt.raw_text = original_text.strip()
+                continue
+
         # Check and enforce Ui == strip_glosses(Ai)
         is_faithful, _ = validate_unadapted_fidelity(excerpt.adapted_text, excerpt.raw_text)
         if not is_faithful:
-            if len(parsed.excerpts) == 1 and original_text:
-                orig_faithful, _ = validate_unadapted_fidelity(excerpt.adapted_text, original_text.strip())
-                if orig_faithful:
-                    excerpt.raw_text = original_text.strip()
-                else:
-                    logger.warning(
-                        f"LLM excerpt {excerpt.index} had fidelity drift; auto-reconciling raw_text from stripped adapted_text"
-                    )
-                    excerpt.raw_text = strip_glosses(excerpt.adapted_text)
-            else:
-                logger.warning(
-                    f"LLM excerpt {excerpt.index} had fidelity drift; auto-reconciling raw_text from stripped adapted_text"
-                )
-                excerpt.raw_text = strip_glosses(excerpt.adapted_text)
+            logger.warning(
+                f"LLM excerpt {excerpt.index} had fidelity drift; auto-reconciling raw_text from stripped adapted_text"
+            )
+            excerpt.raw_text = strip_glosses(excerpt.adapted_text)
 
     return parsed

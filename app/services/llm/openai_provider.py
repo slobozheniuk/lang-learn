@@ -314,7 +314,11 @@ class OpenAILikeProvider(LLMProvider):
         target_lang: str,
     ) -> IlyaFrankResponse:
         system_prompt = build_ilya_frank_system_prompt(source_lang=source_lang, target_lang=target_lang)
-        words_hint = f"Focus inline parenthetical glosses particularly on these unknown words/phrases: {', '.join(selected_words)}" if selected_words else "Gloss unknown or idiomatic words and phrases."
+        words_hint = (
+            f"Focus inline parenthetical glosses particularly on these unknown words/phrases, integrating them into their enclosing clause glosses: {', '.join(selected_words)}"
+            if selected_words
+            else "Gloss unknown or idiomatic expressions at natural clause boundaries."
+        )
         user_content = (
             f"{words_hint}\n\n"
             f"Authentic Target-Language Input Text:\n{text.strip()}"

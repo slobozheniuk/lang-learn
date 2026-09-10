@@ -179,10 +179,10 @@ def test_ilya_frank_method_real_api(client: TestClient, auth_headers: dict[str, 
             f"Expected some of {expected_lemmas_subset} in extracted vocabulary lemmas: {vocab_lemmas}"
         )
 
-        # Invariant 5: Core domain words are glossed inline with parenthetical Frank notation
-        assert "koning (" in exc["adapted_text"]
-        assert "vogel (" in exc["adapted_text"] or "vogels (" in exc["adapted_text"]
-        assert any(w in exc["adapted_text"] for w in ["stillekesaan (", "twisten (", "kiezen (", "bevelen ("])
+        # Invariant 5: Key syntagms / clauses are glossed at natural syntactic boundaries
+        assert "stillekesaan genoeg (" in exc["adapted_text"]
+        assert "te kiezen (" in exc["adapted_text"] or "koning (" in exc["adapted_text"]
+        assert "Wie anders (" in exc["adapted_text"]
 
         # Note: Live LLMs have slight sampling variance across sequential calls
         # (e.g., '(кто же еще)?' vs '(кто же еще: «кто иначе»)?').
