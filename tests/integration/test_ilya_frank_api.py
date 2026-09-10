@@ -126,15 +126,18 @@ def test_ilya_frank_method_real_api(client: TestClient, auth_headers: dict[str, 
     )
 
     expected_adapted_text = (
-        "De vogels (птицы; vogel, de) vonden (сочли; vinden) het nu toch ook stillekesaan "
-        "(постепенно, мало-помалу) genoeg (достаточным: «достаточно»). Ze besloten (они решили; besluiten) "
-        "een koning (короля; koning, de) te kiezen (выбрать; kiezen), die moest (который должен был; moeten) "
-        "dan maar (тогда уж) een einde maken aan (положить конец; einde, het — конец; maken — делать) "
-        "al die twisten (всем этим распрям, ссорам; twist, de). Een koning, die heeft macht (власть; macht, de), "
-        "die geeft bevelen (отдает приказы; bevel, het; geven — давать) en de anderen moeten luisteren (слушаться).\n"
-        "Maar hoe kies ge (как выбрать: «как выбираешь ты»; ge = je) een koning? "
-        "Dat was niet zo moeilijk (сложно, трудно). De vogel die het hoogst (выше всего; hoog — высокий) "
-        "kon vliegen (могла летать; kunnen; vliegen) werd (стала; worden) koning. Wie anders (кто же еще: «кто иначе»)?"
+        "De vogels vonden het nu toch ook stillekesaan genoeg (птицам это тоже стало "
+        "постепенно надоедать: «птицы находили это теперь все-таки также "
+        "постепенно довольно»; stilletjesaan = stillekesaan = langzaamaan = "
+        "geleidelijk — постепенно). Ze besloten een koning te kiezen (они решили "
+        "выбрать короля), die moest dan maar een einde maken aan al die twisten (он "
+        "должен был тогда всем тем спорам положить конец). Een koning, die heeft "
+        "macht (король — тот имеет власть), die geeft bevelen (тот дает указы) en de "
+        "anderen moeten luisteren (и другие должны слушаться).\n"
+        "Maar hoe kies ge een koning (но как ты выбираешь короля)? Dat was niet zo "
+        "moeilijk (это было не так трудно). De vogel die het hoogst kon vliegen werd "
+        "koning (птица, которая выше всех сумела взлететь, становилась королем). "
+        "Wie anders (кто иначе = кто же еще)?"
     )
 
     prev_provider = job_queue_service._llm_provider
